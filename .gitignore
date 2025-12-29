@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+venv/
+venv310/
+.venv/
+env/
+
+# Caches
+.pytest_cache/
+.synthesis_cache/
+.voice_cache/
+.mypy_cache/
+
+# Output directories (generated audio)
+output/
+output_*/
+audiobook_*/
+demo_output/
+
+# Large model files
+*.onnx
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Generated audio files
+*.wav
+*.mp3
+*.m4a
+*.m4b
+*.ogg
+*.flac
+
+# Archives
+*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Research and fork directories
+deep_research/
+misaki_fork/
+misaki_fr_contribution/
+tests_prononciation/
+corrections/
+
+# Test and demo scripts (root level, not unit tests)
+/demo_*.py
+/test_*.py
+/test_*.md
+/example_*.py
+/generate_audiobook.py
+/audioreader.py
+/audioreader_hq.py
+/audio_reader_hq.py
+/audio_reader_kokoro.py

@@ -1,0 +1,23 @@
+{
+  "lang": "fr",
+  "narrator_voice": "ff_siwis",
+  "voice_mapping": {
+    "Marie": "af_bella",
+    "Pierre": "am_adam",
+    "Jean": "am_michael",
+    "Sophie": "af_nicole",
+    "Le docteur": "bm_george",
+    "La vieille femme": "af_sarah"
+  },
+  "auto_assign_voices": true,
+  "enable_emotion_analysis": true,
+  "enable_prosody_hints": true,
+  "enable_breath_pauses": true,
+  "max_chunk_size": 500,
+  "sentence_pause": 0.3,
+  "paragraph_pause": 0.8,
+  "dialogue_pause": 0.4,
+  "enable_pronunciation_correction": true,
+  "enable_character_detection": true,
+  "min_character_occurrences": 2
+}
