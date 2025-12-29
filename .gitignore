@@ -67,12 +67,7 @@ misaki_fr_contribution/
 tests_prononciation/
 corrections/
 
-# Test and demo scripts (root level, not unit tests)
-/demo_*.py
-/test_*.py
-/test_*.md
-/example_*.py
-/generate_audiobook.py
+# Old/deprecated scripts (not part of main project)
 /audioreader.py
 /audioreader_hq.py
 /audio_reader_hq.py
