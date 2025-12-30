@@ -13,9 +13,17 @@ Usage:
 """
 import numpy as np
 from pathlib import Path
-from typing import Optional, Dict, List, Set, Tuple
+from typing import Optional, Dict, List, Set, Tuple, Callable
 from dataclasses import dataclass, field
 import re
+
+# Import des corrections (optionnel)
+try:
+    from .corrections_conquerants import apply_corrections as apply_conquerants_corrections
+    HAS_CORRECTIONS = True
+except ImportError:
+    HAS_CORRECTIONS = False
+    apply_conquerants_corrections = None
 
 
 @dataclass
@@ -114,11 +122,22 @@ class HybridTTSEngine:
         voice_mapping: Optional[Dict[str, str]] = None,
         narrator_speed: float = 1.0,
         dialogue_speed: float = 1.0,
+        apply_corrections: bool = True,
+        corrections_func: Optional[Callable[[str], str]] = None,
     ):
         self.mms_language = mms_language
         self.voice_mapping = {k.lower(): v for k, v in (voice_mapping or {}).items()}
         self.narrator_speed = narrator_speed
         self.dialogue_speed = dialogue_speed
+        self.apply_corrections = apply_corrections
+
+        # Fonction de corrections personnalisée ou par défaut
+        if corrections_func:
+            self._corrections_func = corrections_func
+        elif HAS_CORRECTIONS and apply_corrections:
+            self._corrections_func = apply_conquerants_corrections
+        else:
+            self._corrections_func = None
 
         self._mms_engine = None
         self._kokoro = None
@@ -443,6 +462,13 @@ class HybridTTSEngine:
         self._female_idx = 0
         self._male_idx = 0
 
+        # Appliquer les corrections phonétiques
+        if self._corrections_func:
+            print("Application des corrections phonétiques...")
+            original_len = len(text)
+            text = self._corrections_func(text)
+            print(f"  {original_len} → {len(text)} caractères")
+
         # Détecter les segments
         print("Analyse du texte...")
         segments = self._detect_segments(text)
@@ -551,15 +577,30 @@ class HybridTTSEngine:
 
 def create_hybrid_engine(
     language: str = "fr",
-    voice_mapping: Optional[Dict[str, str]] = None
+    voice_mapping: Optional[Dict[str, str]] = None,
+    apply_corrections: bool = True,
+    corrections_func: Optional[Callable[[str], str]] = None,
 ) -> HybridTTSEngine:
-    """Crée un moteur hybride configuré."""
+    """
+    Crée un moteur hybride configuré.
+
+    Args:
+        language: Code langue (fr, en, de, es)
+        voice_mapping: Dict personnage -> voix Kokoro
+        apply_corrections: Appliquer les corrections phonétiques
+        corrections_func: Fonction de corrections personnalisée
+
+    Returns:
+        Instance HybridTTSEngine configurée
+    """
     lang_map = {"fr": "fra", "en": "eng", "de": "deu", "es": "spa"}
     mms_lang = lang_map.get(language, language)
 
     return HybridTTSEngine(
         mms_language=mms_lang,
-        voice_mapping=voice_mapping or {}
+        voice_mapping=voice_mapping or {},
+        apply_corrections=apply_corrections,
+        corrections_func=corrections_func,
     )
 
 
