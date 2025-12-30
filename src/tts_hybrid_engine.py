@@ -19,11 +19,17 @@ import re
 
 # Import des corrections (optionnel)
 try:
-    from .corrections_conquerants import apply_corrections as apply_conquerants_corrections
+    from .corrections_loader import apply_default_corrections, create_correction_func
     HAS_CORRECTIONS = True
 except ImportError:
-    HAS_CORRECTIONS = False
-    apply_conquerants_corrections = None
+    try:
+        from .corrections_conquerants import apply_corrections as apply_default_corrections
+        create_correction_func = None
+        HAS_CORRECTIONS = True
+    except ImportError:
+        HAS_CORRECTIONS = False
+        apply_default_corrections = None
+        create_correction_func = None
 
 
 @dataclass
@@ -135,7 +141,7 @@ class HybridTTSEngine:
         if corrections_func:
             self._corrections_func = corrections_func
         elif HAS_CORRECTIONS and apply_corrections:
-            self._corrections_func = apply_conquerants_corrections
+            self._corrections_func = apply_default_corrections
         else:
             self._corrections_func = None
 

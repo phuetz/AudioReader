@@ -1,0 +1,990 @@
+{
+  "name": "glossaire_corrections_transcription",
+  "version": "1.0",
+  "language": "fr",
+  "created_at": "2025-12-30T00:00:40.708833+00:00",
+  "rules": [
+    {
+      "id": "debut_20_france",
+      "section": "Début – Enfance & Banlieue",
+      "original": "20 France",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "20 francs",
+      "notes": "Confusion STT France/francs.",
+      "pattern": "\\b20\\s+France\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_cogoises",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Cogoises",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Gauloises",
+      "notes": "Marque de cigarettes : Gauloises.",
+      "pattern": "\\bCogoises\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_saint_denis_ferrier",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Saint Denis Ferrier",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : Saint-Denis / nom de rue exact]",
+      "alternatives": [
+        "Saint-Denis",
+        "Saint-Denis (rue/lieu exact à confirmer)"
+      ],
+      "notes": "Probable référence à Saint-Denis ; 'Ferrier' peut être un nom de rue/personne mal entendu.",
+      "pattern": "\\bSaint\\s+Denis\\s+Ferrier\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_loyer_hum",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Loyer hum",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "loyer HLM",
+      "pattern": "\\bLoyer\\s+hum\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_catette",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Catette",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "cadette",
+      "pattern": "\\bCatette\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_a_veau_bon",
+      "section": "Début – Enfance & Banlieue",
+      "original": "A veau bon",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "à quoi bon",
+      "pattern": "\\bA\\s+veau\\s+bon\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_mocassins_gipsy",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Mocassins Gipsy",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "mocassins Gucci",
+      "alternatives": [
+        "mocassins Gucci",
+        "mocassins (autre marque à confirmer)"
+      ],
+      "notes": "Probable marque de luxe ; à valider à l'oreille.",
+      "pattern": "\\bMocassins\\s+Gipsy\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_champs_elysee_phrase",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Champs Élysée 3 mois plus tôt mode hors celui-là à faire",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : Champs-Élysées … modèle hors-série]",
+      "alternatives": [
+        "Champs-Élysées … modèle hors-série",
+        "Champs-Élysées … (phrase à reconstituer)"
+      ],
+      "notes": "Phrase STT très éclatée ; à reconstruire au contexte + audio.",
+      "pattern": "\\bChamps\\s+Élysée\\s+3\\s+mois\\s+plus\\s+tôt\\s+mode\\s+hors\\s+celui\\-là\\s+à\\s+faire\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_loi_fer_en_cuir",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Loi fer en cuir",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "loafers en cuir",
+      "notes": "Loafers = type de mocassins.",
+      "pattern": "\\bLoi\\s+fer\\s+en\\s+cuir\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_tyro_franc",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Tyro franc",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[montant à vérifier : mille francs ?]",
+      "alternatives": [
+        "mille francs",
+        "un autre montant (à confirmer)"
+      ],
+      "notes": "Montant monétaire incertain ; nécessite écoute.",
+      "pattern": "\\bTyro\\s+franc\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "debut_usine_citroen_an",
+      "section": "Début – Enfance & Banlieue",
+      "original": "Usine Citroën an",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "usine Citroën d'Aulnay",
+      "alternatives": [
+        "usine Citroën d'Aulnay",
+        "l'usine Citroën"
+      ],
+      "notes": "Référence possible à Aulnay-sous-Bois ; à valider.",
+      "pattern": "\\bUsine\\s+Citroën\\s+an\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_jommage_television",
+      "section": "Milieu – Poker & Cave",
+      "original": "Jommage télévision",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "chômage, télévision",
+      "pattern": "\\bJommage\\s+télévision\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_technique_de_maitre_carre",
+      "section": "Milieu – Poker & Cave",
+      "original": "Technique de maître carré",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "dix mètres carrés",
+      "pattern": "\\bTechnique\\s+de\\s+maître\\s+carré\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_compteurs_eleves",
+      "section": "Milieu – Poker & Cave",
+      "original": "Compteurs élèves",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "compteurs électriques",
+      "alternatives": [
+        "compteurs élec",
+        "compteurs électriques"
+      ],
+      "pattern": "\\bCompteurs\\s+élèves\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_pattee_en_gris_admin",
+      "section": "Milieu – Poker & Cave",
+      "original": "En fait patte en gris administration",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "peinte en gris administratif",
+      "alternatives": [
+        "peinte en gris administratif",
+        "peinte en gris 'administration'"
+      ],
+      "notes": "Formulation variable ; l'idée : couleur 'gris administratif'.",
+      "pattern": "\\bEn\\s+fait\\s+patte\\s+en\\s+gris\\s+administration\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_trois_coups_espaces_grattement",
+      "section": "Milieu – Poker & Cave",
+      "original": "Trois coups espacés à grattement",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : trois coups espacés, un grattement]",
+      "alternatives": [
+        "trois coups espacés, un grattement",
+        "un grattement (seul)"
+      ],
+      "notes": "À confirmer : présence/absence de 'trois coups espacés'.",
+      "pattern": "\\bTrois\\s+coups\\s+espacés\\s+à\\s+grattement\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_aval_de_pied_noir",
+      "section": "Milieu – Poker & Cave",
+      "original": "Aval de pied noir",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : allure de pied-noir / cavale ?]",
+      "alternatives": [
+        "allure de pied-noir",
+        "cavale",
+        "autre expression"
+      ],
+      "notes": "Très flou ; nécessite écoute + contexte.",
+      "pattern": "\\bAval\\s+de\\s+pied\\s+noir\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_mise_minimeur",
+      "section": "Milieu – Poker & Cave",
+      "original": "Mise minimeur",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "mise minimum",
+      "alternatives": [
+        "mise minimum",
+        "mise minimale"
+      ],
+      "pattern": "\\bMise\\s+minimeur\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_lete_de_franc",
+      "section": "Milieu – Poker & Cave",
+      "original": "L'été de franc",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[montant à vérifier : l'était de 30 francs ?]",
+      "alternatives": [
+        "l'était de 30 francs",
+        "l'était de … francs (autre)"
+      ],
+      "notes": "Montant incertain ; nécessite écoute.",
+      "pattern": "\\bL'été\\s+de\\s+franc\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_blaspheme_le_ciel",
+      "section": "Milieu – Poker & Cave",
+      "original": "Blasphème le ciel",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : bas de l'échelle / autre]",
+      "alternatives": [
+        "bas de l'échelle",
+        "business du ciel",
+        "autre"
+      ],
+      "notes": "Expression très incertaine.",
+      "pattern": "\\bBlasphème\\s+le\\s+ciel\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_odoradious",
+      "section": "Milieu – Poker & Cave",
+      "original": "Odoradious",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "autoradios",
+      "pattern": "\\bOdoradious\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_campin_bancal",
+      "section": "Milieu – Poker & Cave",
+      "original": "Campin bancal",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "lit de camp bancal",
+      "pattern": "\\bCampin\\s+bancal\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_fluant_sang_frais",
+      "section": "Milieu – Poker & Cave",
+      "original": "Fluant le sang frais",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "fleurant le sang frais",
+      "pattern": "\\bFluant\\s+le\\s+sang\\s+frais\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_elias_de_billets",
+      "section": "Milieu – Poker & Cave",
+      "original": "Elias de billets",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "liasses de billets",
+      "pattern": "\\bElias\\s+de\\s+billets\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_clubs_de_bops",
+      "section": "Milieu – Poker & Cave",
+      "original": "Clubs de bops",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "clubs de boxe",
+      "pattern": "\\bClubs\\s+de\\s+bops\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_10_gramme_or_carra",
+      "section": "Milieu – Poker & Cave",
+      "original": "10 gramme d'or carra",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "10 grammes d'or, carats",
+      "alternatives": [
+        "10 grammes d'or, carats",
+        "10 grammes d'or, 24 carats"
+      ],
+      "notes": "Souvent 'carats' ou '24 carats' selon l'audio.",
+      "pattern": "\\b10\\s+gramme\\s+d'or\\s+carra\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_balles_a_chaque_doigt",
+      "section": "Milieu – Poker & Cave",
+      "original": "Les balles à chaque doigt",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "les bagues à chaque doigt",
+      "pattern": "\\bLes\\s+balles\\s+à\\s+chaque\\s+doigt\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_claude_de_banlieue",
+      "section": "Milieu – Poker & Cave",
+      "original": "Claude de banlieue",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "caïd de banlieue",
+      "alternatives": [
+        "caïd de banlieue",
+        "Claude (nom propre)"
+      ],
+      "notes": "Peut être un nom propre ou 'caïd'.",
+      "pattern": "\\bClaude\\s+de\\s+banlieue\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_simportait_trapu",
+      "section": "Milieu – Poker & Cave",
+      "original": "S'importait le trapu",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "s'appelait le Trapu",
+      "pattern": "\\bS'importait\\s+le\\s+trapu\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_500_francs_la_passe",
+      "section": "Milieu – Poker & Cave",
+      "original": "500 francs la passé",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "500 francs la passe",
+      "pattern": "\\b500\\s+francs\\s+la\\s+passé\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_01_omane",
+      "section": "Milieu – Poker & Cave",
+      "original": "01 Omane",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "héroïnomane",
+      "pattern": "\\b01\\s+Omane\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_la_cest_malin",
+      "section": "Milieu – Poker & Cave",
+      "original": "La c'est malin",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : là, c'est malin / lacet / assez malin]",
+      "alternatives": [
+        "là, c'est malin",
+        "lacet",
+        "assez malin"
+      ],
+      "notes": "Ambigu : peut être une phrase 'là c'est malin' ou autre mot.",
+      "pattern": "\\bLa\\s+c'est\\s+malin\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_les_clievi",
+      "section": "Milieu – Poker & Cave",
+      "original": "Les Clievi",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : clients VIP]",
+      "alternatives": [
+        "clients VIP",
+        "clients en vie",
+        "autre"
+      ],
+      "notes": "Probable 'clients VIP' mais incertain.",
+      "pattern": "\\bLes\\s+Clievi\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_remonte_leau_grossiste",
+      "section": "Milieu – Poker & Cave",
+      "original": "Remonté l'eau grossiste",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "remontait au grossiste",
+      "pattern": "\\bRemonté\\s+l'eau\\s+grossiste\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_baffons",
+      "section": "Milieu – Poker & Cave",
+      "original": "Baffons",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "bas-fonds",
+      "pattern": "\\bBaffons\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_un_acide_fais_toi",
+      "section": "Milieu – Poker & Cave",
+      "original": "Un acide fais-toi",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "assieds-toi",
+      "pattern": "\\bUn\\s+acide\\s+fais\\-toi\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_tripe_sa_mise",
+      "section": "Milieu – Poker & Cave",
+      "original": "Tripé sa mise",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "triplé sa mise",
+      "pattern": "\\bTripé\\s+sa\\s+mise\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_quand_il_etait_sarta",
+      "section": "Milieu – Poker & Cave",
+      "original": "Quand il était sarta",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "certain",
+      "alternatives": [
+        "certain",
+        "sûr"
+      ],
+      "notes": "Probable 'certain' / 'sûr' selon contexte.",
+      "pattern": "\\bQuand\\s+il\\s+était\\s+sarta\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_du_taque_pure",
+      "section": "Milieu – Poker & Cave",
+      "original": "Du taque pure",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : du tac au tac / du talent pur]",
+      "alternatives": [
+        "du tac au tac",
+        "du talent pur"
+      ],
+      "notes": "Deux lectures possibles ; nécessite écoute.",
+      "pattern": "\\bDu\\s+taque\\s+pure\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_nu_for_fune",
+      "section": "Milieu – Poker & Cave",
+      "original": "Nu for fune",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "une fortune",
+      "pattern": "\\bNu\\s+for\\s+fune\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_jai_petas_amel",
+      "section": "Milieu – Poker & Cave",
+      "original": "J'ai pétas Amel",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : j'ai battu Amel / j'ai payé Amel]",
+      "alternatives": [
+        "j'ai battu Amel",
+        "j'ai payé Amel",
+        "autre"
+      ],
+      "notes": "Nécessite écoute + contexte.",
+      "pattern": "\\bJ'ai\\s+pétas\\s+Amel\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_une_sevonde",
+      "section": "Milieu – Poker & Cave",
+      "original": "Une sevonde",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "une seconde",
+      "pattern": "\\bUne\\s+sevonde\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_javais_de_bonne_cat",
+      "section": "Milieu – Poker & Cave",
+      "original": "J'avais de bonne cat",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "j'avais de bonnes cartes",
+      "pattern": "\\bJ'avais\\s+de\\s+bonne\\s+cat\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "milieu_ta_vec_a_dal",
+      "section": "Milieu – Poker & Cave",
+      "original": "Ta véc a dal",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "t'avais que dalle",
+      "pattern": "\\bTa\\s+véc\\s+a\\s+dal\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_du_golf",
+      "section": "Fin – Dubaï",
+      "original": "Du golf",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "du Golfe",
+      "notes": "Référence au Golfe (Persique).",
+      "pattern": "\\bDu\\s+golf\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_du_bail",
+      "section": "Fin – Dubaï",
+      "original": "Du bail",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Dubaï",
+      "pattern": "\\bDu\\s+bail\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_le_mail_le_doff",
+      "section": "Fin – Dubaï",
+      "original": "Le mail... Le doff",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : The Mall / dhow(s) / autre]",
+      "alternatives": [
+        "The Mall",
+        "dhow(s)",
+        "autre"
+      ],
+      "notes": "Fragments de lieux/mots ; à reconstituer à l'audio.",
+      "pattern": "\\bLe\\s+mail\\.\\.\\.\\s+Le\\s+doff\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_voyage_cheque",
+      "section": "Fin – Dubaï",
+      "original": "Voyage chèque",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "traveler's chèques",
+      "pattern": "\\bVoyage\\s+chèque\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_loto_de_par_mois",
+      "section": "Fin – Dubaï",
+      "original": "Loto de par mois",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : taux de … par mois]",
+      "alternatives": [
+        "taux de … par mois",
+        "loyer de … par mois"
+      ],
+      "notes": "Ambigu : 'taux' ou 'loyer' ou autre.",
+      "pattern": "\\bLoto\\s+de\\s+par\\s+mois\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_silhouette_shadow",
+      "section": "Fin – Dubaï",
+      "original": "Silhouette shadow",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Silver Shadow",
+      "notes": "Modèle de Rolls-Royce.",
+      "pattern": "\\bSilhouette\\s+shadow\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_yeux_soulignes_de_flou",
+      "section": "Fin – Dubaï",
+      "original": "Yeux soulignés de flou",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "yeux soulignés de khôl",
+      "pattern": "\\bYeux\\s+soulignés\\s+de\\s+flou\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_zuni",
+      "section": "Fin – Dubaï",
+      "original": "Zuni",
+      "confidence": "medium",
+      "action": "replace",
+      "replacement": "Émirats arabes unis",
+      "alternatives": [
+        "Émirats arabes unis",
+        "EAU (abréviation)"
+      ],
+      "notes": "Probable référence aux Émirats (EAU/UAE).",
+      "pattern": "\\bZuni\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_deral_vieux_dubai",
+      "section": "Fin – Dubaï",
+      "original": "Deral le vieux Dubaï",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Deira (le vieux Dubaï)",
+      "pattern": "\\bDeral\\s+le\\s+vieux\\s+Dubaï\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_long_de_cheik",
+      "section": "Fin – Dubaï",
+      "original": "Long de cheik",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "le long du Creek",
+      "notes": "Dubai Creek.",
+      "pattern": "\\bLong\\s+de\\s+cheik\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_zayiroar",
+      "section": "Fin – Dubaï",
+      "original": "Zayiroar",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Zayed Road",
+      "alternatives": [
+        "Zayed Road",
+        "Sheikh Zayed Road"
+      ],
+      "pattern": "\\bZayiroar\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_tapis_pecheurs",
+      "section": "Fin – Dubaï",
+      "original": "Tapis pécheurs",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "tapis persans",
+      "pattern": "\\bTapis\\s+pécheurs\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_doff",
+      "section": "Fin – Dubaï",
+      "original": "Doff",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "dhows",
+      "notes": "Boutres/voiliers traditionnels.",
+      "pattern": "\\bDoff\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_tradin",
+      "section": "Fin – Dubaï",
+      "original": "Tradin",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "trading",
+      "pattern": "\\bTradin\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_il_montit",
+      "section": "Fin – Dubaï",
+      "original": "Il montit",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "il mentit",
+      "pattern": "\\bIl\\s+montit\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_cour_a_mail",
+      "section": "Fin – Dubaï",
+      "original": "Cour à mail",
+      "confidence": "low",
+      "action": "flag",
+      "replacement": "[à vérifier : courrier / cours / mall]",
+      "alternatives": [
+        "courrier",
+        "cours",
+        "mall"
+      ],
+      "notes": "Très ambigu ; nécessite écoute.",
+      "pattern": "\\bCour\\s+à\\s+mail\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_victor_vasserra",
+      "section": "Fin – Dubaï",
+      "original": "Victor vasserra",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Victor serra (la main)",
+      "pattern": "\\bVictor\\s+vasserra\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_cheikh_zayel_roal",
+      "section": "Fin – Dubaï",
+      "original": "Cheikh Zayel Roal",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "Sheikh Zayed Road",
+      "pattern": "\\bCheikh\\s+Zayel\\s+Roal\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_bureaux_des_tradir",
+      "section": "Fin – Dubaï",
+      "original": "Les bureaux des tradir",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "les bureaux des traders",
+      "pattern": "\\bLes\\s+bureaux\\s+des\\s+tradir\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_une_solde_monsieur",
+      "section": "Fin – Dubaï",
+      "original": "Une solde monsieur",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "une seule, monsieur",
+      "pattern": "\\bUne\\s+solde\\s+monsieur\\b",
+      "flags": [
+        "i"
+      ]
+    },
+    {
+      "id": "fin_pas_en_prince",
+      "section": "Fin – Dubaï",
+      "original": "Pas en prince",
+      "confidence": "high",
+      "action": "replace",
+      "replacement": "pas un prince",
+      "pattern": "\\bPas\\s+en\\s+prince\\b",
+      "flags": [
+        "i"
+      ]
+    }
+  ],
+  "safe_map_high_confidence": {
+    "20 France": "20 francs",
+    "Cogoises": "Gauloises",
+    "Loyer hum": "loyer HLM",
+    "Catette": "cadette",
+    "A veau bon": "à quoi bon",
+    "Loi fer en cuir": "loafers en cuir",
+    "Jommage télévision": "chômage, télévision",
+    "Technique de maître carré": "dix mètres carrés",
+    "Compteurs élèves": "compteurs électriques",
+    "Mise minimeur": "mise minimum",
+    "Odoradious": "autoradios",
+    "Campin bancal": "lit de camp bancal",
+    "Fluant le sang frais": "fleurant le sang frais",
+    "Elias de billets": "liasses de billets",
+    "Clubs de bops": "clubs de boxe",
+    "Les balles à chaque doigt": "les bagues à chaque doigt",
+    "S'importait le trapu": "s'appelait le Trapu",
+    "500 francs la passé": "500 francs la passe",
+    "01 Omane": "héroïnomane",
+    "Remonté l'eau grossiste": "remontait au grossiste",
+    "Baffons": "bas-fonds",
+    "Un acide fais-toi": "assieds-toi",
+    "Tripé sa mise": "triplé sa mise",
+    "Nu for fune": "une fortune",
+    "Une sevonde": "une seconde",
+    "J'avais de bonne cat": "j'avais de bonnes cartes",
+    "Ta véc a dal": "t'avais que dalle",
+    "Du golf": "du Golfe",
+    "Du bail": "Dubaï",
+    "Voyage chèque": "traveler's chèques",
+    "Silhouette shadow": "Silver Shadow",
+    "Yeux soulignés de flou": "yeux soulignés de khôl",
+    "Deral le vieux Dubaï": "Deira (le vieux Dubaï)",
+    "Long de cheik": "le long du Creek",
+    "Zayiroar": "Zayed Road",
+    "Tapis pécheurs": "tapis persans",
+    "Doff": "dhows",
+    "Tradin": "trading",
+    "Il montit": "il mentit",
+    "Victor vasserra": "Victor serra (la main)",
+    "Cheikh Zayel Roal": "Sheikh Zayed Road",
+    "Les bureaux des tradir": "les bureaux des traders",
+    "Une solde monsieur": "une seule, monsieur",
+    "Pas en prince": "pas un prince"
+  },
+  "map_medium_confidence": {
+    "Mocassins Gipsy": "mocassins Gucci",
+    "Usine Citroën an": "usine Citroën d'Aulnay",
+    "En fait patte en gris administration": "peinte en gris administratif",
+    "10 gramme d'or carra": "10 grammes d'or, carats",
+    "Claude de banlieue": "caïd de banlieue",
+    "Quand il était sarta": "certain",
+    "Zuni": "Émirats arabes unis"
+  },
+  "low_confidence_to_review": [
+    "Saint Denis Ferrier",
+    "Champs Élysée 3 mois plus tôt mode hors celui-là à faire",
+    "Tyro franc",
+    "Trois coups espacés à grattement",
+    "Aval de pied noir",
+    "L'été de franc",
+    "Blasphème le ciel",
+    "La c'est malin",
+    "Les Clievi",
+    "Du taque pure",
+    "J'ai pétas Amel",
+    "Le mail... Le doff",
+    "Loto de par mois",
+    "Cour à mail"
+  ]
+}
