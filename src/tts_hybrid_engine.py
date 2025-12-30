@@ -20,6 +20,13 @@ import re
 import subprocess
 import shutil
 
+# Import du crossfade
+try:
+    from .audio_crossfade import apply_crossfade_to_chapter, AudioCrossfader
+    HAS_CROSSFADE = True
+except ImportError:
+    HAS_CROSSFADE = False
+
 # Import des corrections (optionnel)
 try:
     from .corrections_loader import apply_default_corrections, create_correction_func
@@ -133,12 +140,16 @@ class HybridTTSEngine:
         dialogue_speed: float = 1.0,
         apply_corrections: bool = True,
         corrections_func: Optional[Callable[[str], str]] = None,
+        use_crossfade: bool = True,
+        crossfade_ms: int = 50,
     ):
         self.mms_language = mms_language
         self.voice_mapping = {k.lower(): v for k, v in (voice_mapping or {}).items()}
         self.narrator_speed = narrator_speed
         self.dialogue_speed = dialogue_speed
         self.apply_corrections = apply_corrections
+        self.use_crossfade = use_crossfade and HAS_CROSSFADE
+        self.crossfade_ms = crossfade_ms
 
         # Fonction de corrections personnalisée ou par défaut
         if corrections_func:
@@ -589,7 +600,13 @@ class HybridTTSEngine:
             print("Aucun audio généré")
             return False
 
-        final_audio = np.concatenate(all_audio)
+        # Assembler l'audio avec ou sans crossfade
+        if self.use_crossfade and len(all_audio) > 1:
+            print("\nApplication du crossfade entre segments...")
+            final_audio = apply_crossfade_to_chapter(all_audio, sample_rate, self.crossfade_ms)
+        else:
+            final_audio = np.concatenate(all_audio)
+
         max_val = np.max(np.abs(final_audio))
         if max_val > 0:
             final_audio = (final_audio / max_val * 0.9).astype(np.float32)
@@ -666,6 +683,8 @@ def create_hybrid_engine(
     voice_mapping: Optional[Dict[str, str]] = None,
     apply_corrections: bool = True,
     corrections_func: Optional[Callable[[str], str]] = None,
+    use_crossfade: bool = True,
+    crossfade_ms: int = 50,
 ) -> HybridTTSEngine:
     """
     Crée un moteur hybride configuré.
@@ -675,6 +694,8 @@ def create_hybrid_engine(
         voice_mapping: Dict personnage -> voix Kokoro
         apply_corrections: Appliquer les corrections phonétiques
         corrections_func: Fonction de corrections personnalisée
+        use_crossfade: Utiliser le crossfade entre segments
+        crossfade_ms: Durée du crossfade en millisecondes
 
     Returns:
         Instance HybridTTSEngine configurée
@@ -687,6 +708,8 @@ def create_hybrid_engine(
         voice_mapping=voice_mapping or {},
         apply_corrections=apply_corrections,
         corrections_func=corrections_func,
+        use_crossfade=use_crossfade,
+        crossfade_ms=crossfade_ms,
     )
 
 

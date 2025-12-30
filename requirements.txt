@@ -21,5 +21,8 @@ ebooklib>=0.18    # EPUB generation
 # Optional: Advanced TTS (requires Python 3.10-3.12)
 # pip install chatterbox-tts torch torchaudio
 
+# Optional: XTTS-v2 (high-quality voice cloning)
+# pip install TTS torch torchaudio
+
 # Development
 # pip install pytest black flake8

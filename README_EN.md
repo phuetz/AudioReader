@@ -13,6 +13,7 @@ Powered by [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - an open-sou
 ## Table of Contents
 
 - [Features](#-features)
+- [What's New in v2.4 - Tools and Engines](#-whats-new-in-v24---tools-and-engines)
 - [What's New in v2.3 - ElevenLabs Style](#-whats-new-in-v23---elevenlabs-style)
 - [What's New in v2.2 - Multi-Format Export](#-whats-new-in-v22---multi-format-export)
 - [What's New in v2.1 - Advanced Features](#-whats-new-in-v21---advanced-features)
@@ -67,6 +68,105 @@ Powered by [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - an open-sou
 - **Complete CLI**: Command-line scripts with advanced options
 - **Web Interface**: Intuitive Gradio application
 - **HQ Pipeline**: Dedicated script for maximum quality
+
+---
+
+## What's New in v2.4 - Tools and Engines
+
+### XTTS-v2 Engine (Voice Cloning)
+
+New TTS engine based on Coqui's XTTS-v2 for high-quality voice cloning:
+
+```python
+from src.tts_xtts_engine import XTTSEngine, XTTSConfig
+
+config = XTTSConfig(
+    default_language="en",
+    use_gpu=True,
+    temperature=0.7
+)
+engine = XTTSEngine(config)
+
+# Clone a voice with just 6 seconds of audio
+engine.register_voice("narrator", "samples/my_voice.wav")
+
+# Synthesize with the cloned voice
+engine.synthesize_chapter(text, "output.wav", voice_id="narrator")
+```
+
+**Features:**
+- Clone with just 6 seconds of audio
+- 17 supported languages including English and French
+- Quality comparable to commercial solutions
+
+### Audio Crossfade
+
+Smooth transitions between audio segments to eliminate audible "seams":
+
+```python
+from src.audio_crossfade import apply_crossfade_to_chapter
+
+# Assemble segments with crossfade
+final_audio = apply_crossfade_to_chapter(
+    audio_segments,
+    sample_rate=24000,
+    crossfade_ms=50  # 50ms crossfade
+)
+```
+
+The hybrid engine now uses crossfade by default:
+
+```python
+from src.tts_hybrid_engine import create_hybrid_engine
+
+engine = create_hybrid_engine(
+    use_crossfade=True,
+    crossfade_ms=50
+)
+```
+
+### Quick Preview (30 seconds)
+
+Generate a 30-second preview to test settings before full conversion:
+
+```python
+from src.preview_generator import generate_quick_preview
+
+success, message = generate_quick_preview(
+    text=full_text,
+    output_path="preview.wav",
+    engine_type="hybrid",
+    duration=30.0
+)
+```
+
+**Intelligent extraction:**
+- Start of text (context)
+- Dialogue passage (if present)
+- Emotional passage (if detected)
+
+### Web Interface for Corrections
+
+Gradio interface to manage pronunciation corrections:
+
+```bash
+# Launch the interface
+python -m src.corrections_ui --file corrections.json --port 7861
+```
+
+**Features:**
+- Add/delete corrections
+- Search the glossary
+- Test audio with TTS engine
+- Import/Export JSON
+
+### Fine-Tuning Guide
+
+New document `docs/FINE_TUNING_OPTIONS.md` with:
+- XTTS-v2 vs StyleTTS2 comparison
+- Required configuration (GPU, audio)
+- Step-by-step fine-tuning workflow
+- Recommendations for different languages
 
 ---
 
@@ -537,8 +637,16 @@ AudioReader/
 │   ├── book_exporter.py        # PDF, EPUB, HTML, TXT export
 │   ├── bio_acoustics.py        # Realistic breathing
 │   ├── intonation_contour.py   # Prosodic contours
-│   └── timing_humanizer.py     # Rhythm micro-variations
+│   ├── timing_humanizer.py     # Rhythm micro-variations
+│   │
+│   │   # --- MODULES v2.4 ---
+│   ├── tts_xtts_engine.py      # XTTS-v2 engine (voice cloning)
+│   ├── audio_crossfade.py      # Crossfade between segments
+│   ├── preview_generator.py    # Quick 30s preview
+│   └── corrections_ui.py       # Gradio corrections interface
 │
+├── docs/
+│   └── FINE_TUNING_OPTIONS.md  # Fine-tuning guide
 ├── config_multivoix_example.json  # Example config
 ├── books/                  # Source books
 └── output/                 # Generated audiobooks
@@ -708,4 +816,4 @@ Yes, with the extended pipeline (`hq_pipeline_extended.py`), caching is enabled 
 
 ---
 
-*AudioReader v2.3 - Convert your books to professional-quality audiobooks*
+*AudioReader v2.4 - Convert your books to professional-quality audiobooks*

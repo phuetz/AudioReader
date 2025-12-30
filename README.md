@@ -13,6 +13,7 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 ## Table des matieres
 
 - [Fonctionnalites](#-fonctionnalites)
+- [Nouveautes v2.4 - Outils et Moteurs](#-nouveautes-v24---outils-et-moteurs)
 - [Nouveautes v2.3 - Style ElevenLabs](#-nouveautes-v23---style-elevenlabs)
 - [Nouveautes v2.2 - Export Multi-Format](#-nouveautes-v22---export-multi-format)
 - [Nouveautes v2.1 - Fonctionnalites Avancees](#-nouveautes-v21---fonctionnalites-avancees)
@@ -66,6 +67,105 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - **CLI complete**: Scripts en ligne de commande avec options avancees
 - **Interface Web**: Application Gradio intuitive
 - **Pipeline HQ**: Script dedie pour qualite maximale
+
+---
+
+## Nouveautes v2.4 - Outils et Moteurs
+
+### Moteur XTTS-v2 (Clonage de Voix)
+
+Nouveau moteur TTS base sur XTTS-v2 de Coqui pour le clonage de voix haute qualite :
+
+```python
+from src.tts_xtts_engine import XTTSEngine, XTTSConfig
+
+config = XTTSConfig(
+    default_language="fr",
+    use_gpu=True,
+    temperature=0.7
+)
+engine = XTTSEngine(config)
+
+# Cloner une voix avec seulement 6 secondes d'audio
+engine.register_voice("narrator", "samples/ma_voix.wav")
+
+# Synthetiser avec la voix clonee
+engine.synthesize_chapter(text, "output.wav", voice_id="narrator")
+```
+
+**Caracteristiques :**
+- Clonage avec 6 secondes d'audio minimum
+- 17 langues supportees dont le francais
+- Qualite comparable aux solutions commerciales
+
+### Crossfade Audio
+
+Transitions fluides entre segments audio pour eliminer les "coutures" audibles :
+
+```python
+from src.audio_crossfade import apply_crossfade_to_chapter
+
+# Assembler des segments avec crossfade
+final_audio = apply_crossfade_to_chapter(
+    audio_segments,
+    sample_rate=24000,
+    crossfade_ms=50  # 50ms de fondu enchaine
+)
+```
+
+Le moteur hybride utilise maintenant le crossfade par defaut :
+
+```python
+from src.tts_hybrid_engine import create_hybrid_engine
+
+engine = create_hybrid_engine(
+    use_crossfade=True,
+    crossfade_ms=50
+)
+```
+
+### Preview Rapide (30 secondes)
+
+Generez un apercu de 30 secondes pour tester les parametres avant la conversion complete :
+
+```python
+from src.preview_generator import generate_quick_preview
+
+success, message = generate_quick_preview(
+    text=texte_complet,
+    output_path="preview.wav",
+    engine_type="hybrid",
+    duration=30.0
+)
+```
+
+**Extraction intelligente :**
+- Debut du texte (contexte)
+- Passage avec dialogue (si present)
+- Passage emotionnel (si detecte)
+
+### Interface Web pour Corrections
+
+Interface Gradio pour gerer les corrections de prononciation :
+
+```bash
+# Lancer l'interface
+python -m src.corrections_ui --file corrections.json --port 7861
+```
+
+**Fonctionnalites :**
+- Ajout/suppression de corrections
+- Recherche dans le glossaire
+- Test audio avec moteur TTS
+- Import/Export JSON
+
+### Guide de Fine-Tuning
+
+Nouveau document `docs/FINE_TUNING_OPTIONS.md` avec :
+- Comparaison XTTS-v2 vs StyleTTS2
+- Configuration requise (GPU, audio)
+- Workflow de fine-tuning etape par etape
+- Recommandations pour le francais
 
 ---
 
@@ -639,6 +739,15 @@ python audioreader.py --gui
 | Intonation | `intonation_contour.py` | Contours prosodiques |
 | Timing | `timing_humanizer.py` | Micro-variations de rythme |
 
+**Modules v2.4 :**
+
+| Module | Fichier | Description |
+|--------|---------|-------------|
+| Moteur XTTS | `tts_xtts_engine.py` | Clonage de voix XTTS-v2 |
+| Crossfade | `audio_crossfade.py` | Transitions audio fluides |
+| Preview | `preview_generator.py` | Apercu rapide 30 secondes |
+| Corrections UI | `corrections_ui.py` | Interface Gradio corrections |
+
 ### Exemple de Sortie
 
 ```
@@ -709,8 +818,16 @@ AudioReader/
 │   ├── book_exporter.py        # Export PDF, EPUB, HTML, TXT
 │   ├── bio_acoustics.py        # Respirations realistes
 │   ├── intonation_contour.py   # Contours prosodiques
-│   └── timing_humanizer.py     # Micro-variations de rythme
+│   ├── timing_humanizer.py     # Micro-variations de rythme
+│   │
+│   │   # --- MODULES v2.4 ---
+│   ├── tts_xtts_engine.py      # Moteur XTTS-v2 (clonage voix)
+│   ├── audio_crossfade.py      # Crossfade entre segments
+│   ├── preview_generator.py    # Preview rapide 30s
+│   └── corrections_ui.py       # Interface Gradio corrections
 │
+├── docs/
+│   └── FINE_TUNING_OPTIONS.md  # Guide de fine-tuning
 ├── config_multivoix_example.json  # Config exemple
 ├── books/                  # Livres sources
 └── output/                 # Audiobooks generes
@@ -877,4 +994,4 @@ Oui, avec le pipeline etendu (`hq_pipeline_extended.py`), le cache est actif par
 
 ---
 
-*AudioReader v2.3 - Convertissez vos livres en audiobooks de qualite professionnelle*
+*AudioReader v2.4 - Convertissez vos livres en audiobooks de qualite professionnelle*

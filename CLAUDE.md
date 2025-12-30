@@ -93,7 +93,8 @@ python generate_tome1.py
 - `tts_kokoro_engine.py` - Primary TTS (Kokoro-82M), supports voice blending
 - `tts_engine.py` - Edge-TTS fallback
 - `tts_unified.py` - Wrapper that auto-selects best engine per language
-- `tts_hybrid_engine.py` - Hybrid approach combining engines
+- `tts_hybrid_engine.py` - Hybrid approach combining engines (with crossfade)
+- `tts_xtts_engine.py` - XTTS-v2 voice cloning engine (requires TTS library)
 
 **Advanced Features (v2.1):**
 - `audio_tags.py` - ElevenLabs-style tags (`[whispers]`, `[laugh]`, etc.)
@@ -119,10 +120,16 @@ python generate_tome1.py
 - `audio_enhancer.py` - EQ, compression, de-essing, loudness normalization
 - `audio_postprocess.py` - Post-processing utilities
 - `audiobook_builder.py` - M4B/MP3 export with ID3 metadata
+- `audio_crossfade.py` - Crossfade transitions between audio segments (cosine curves)
 
 **Corrections:**
 - `corrections_loader.py` - Loads JSON pronunciation glossaries
 - `corrections_conquerants.py` - Book-specific corrections
+- `corrections_ui.py` - Gradio web UI for managing corrections
+
+**Utilities (v2.4):**
+- `preview_generator.py` - Quick 30s preview generation
+- `book_exporter.py` - Export to PDF, EPUB, HTML, TXT
 
 ### HQ Pipeline Flow
 
@@ -250,6 +257,100 @@ processor = TextTimingProcessor(humanizer)
 segments = processor.process_text("C'est vraiment incroyable!")
 # segments[0].text contient "[pause:0.05] vraiment" etc.
 ```
+
+## Audio Crossfade (v2.4)
+
+`AudioCrossfader` provides smooth transitions between audio segments:
+
+```python
+from src.audio_crossfade import apply_crossfade_to_chapter, AudioCrossfader
+
+# Simple usage for chapter assembly
+final_audio = apply_crossfade_to_chapter(audio_segments, sample_rate=24000, crossfade_ms=50)
+
+# Advanced usage
+config = CrossfadeConfig(
+    crossfade_duration=0.05,  # 50ms
+    curve_type='cosine',       # 'linear', 'cosine', 'exponential'
+    apply_edge_fades=True
+)
+crossfader = AudioCrossfader(config)
+merged = crossfader.crossfade_segments(segment1, segment2, sample_rate)
+```
+
+The hybrid engine now uses crossfade by default:
+```python
+engine = HybridTTSEngine(use_crossfade=True, crossfade_ms=50)
+```
+
+## Quick Preview (v2.4)
+
+Generate 30-second previews to test settings before full conversion:
+
+```python
+from src.preview_generator import generate_quick_preview, PreviewGenerator
+
+# Simple usage
+success, msg = generate_quick_preview(
+    text="Long text...",
+    output_path="preview.wav",
+    engine_type="hybrid",
+    duration=30.0
+)
+
+# Advanced: extract representative text
+generator = PreviewGenerator()
+preview_text = generator.extract_preview_text(full_text, lang='fr')
+# Returns ~450 chars including: start, dialogue, emotional passage
+```
+
+## Corrections Web UI (v2.4)
+
+Gradio interface for managing pronunciation corrections:
+
+```bash
+# Launch the UI
+python -m src.corrections_ui --file corrections.json --port 7861
+
+# Or programmatically
+from src.corrections_ui import launch_corrections_ui
+launch_corrections_ui("corrections.json", share=False, port=7861)
+```
+
+Features:
+- Add/delete/search corrections
+- Preview corrections on text
+- Test audio with TTS engine
+- Import/export JSON
+
+## XTTS-v2 Engine (v2.4)
+
+High-quality voice cloning with XTTS-v2:
+
+```python
+from src.tts_xtts_engine import XTTSEngine, XTTSConfig
+
+config = XTTSConfig(
+    default_language="fr",
+    use_gpu=True,
+    temperature=0.7,
+    speed=1.0
+)
+engine = XTTSEngine(config)
+
+# Register a cloned voice (min 6 seconds of audio)
+engine.register_voice("narrator", "samples/narrator_voice.wav")
+
+# Synthesize with the cloned voice
+engine.synthesize_chapter(text, "output.wav", voice_id="narrator")
+```
+
+Requirements:
+```bash
+pip install TTS torch torchaudio
+```
+
+See `docs/FINE_TUNING_OPTIONS.md` for fine-tuning guide.
 
 ## Language
 
