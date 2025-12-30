@@ -151,8 +151,16 @@ class PronunciationCorrector:
     def correct(self, text: str) -> str:
         """Applique les corrections de prononciation."""
         for word, replacement in self.corrections.items():
-            # Remplacement case-insensitive mais préserve la casse originale
-            pattern = re.compile(re.escape(word), re.IGNORECASE)
+            escaped = re.escape(word)
+
+            # Utiliser des frontieres de mots pour les patterns alphanumeriques
+            # pour eviter de remplacer "ai" dans "mais", "avait", etc.
+            if word[0].isalnum() and word[-1].isalnum():
+                pattern = re.compile(rf'\b{escaped}\b', re.IGNORECASE)
+            else:
+                # Pour les symboles (%, €, ...) pas de frontiere
+                pattern = re.compile(escaped, re.IGNORECASE)
+
             text = pattern.sub(replacement, text)
 
         return text

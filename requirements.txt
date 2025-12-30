@@ -5,12 +5,18 @@ huggingface-hub>=0.20.0
 
 # Audio processing
 ffmpeg-normalize>=1.30.0
+librosa>=0.10.0
+numpy>=1.20.0
 
 # Fallback TTS
 edge-tts>=6.1.0
 
 # Web interface
 gradio>=4.0.0
+
+# Book export formats
+fpdf2>=2.7.0      # PDF generation
+ebooklib>=0.18    # EPUB generation
 
 # Optional: Advanced TTS (requires Python 3.10-3.12)
 # pip install chatterbox-tts torch torchaudio

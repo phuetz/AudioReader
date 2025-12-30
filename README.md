@@ -13,8 +13,10 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 ## Table des matieres
 
 - [Fonctionnalites](#-fonctionnalites)
-- [Nouveautes v2.0 - Pipeline HQ](#-nouveautes-v20---pipeline-hq)
+- [Nouveautes v2.3 - Style ElevenLabs](#-nouveautes-v23---style-elevenlabs)
+- [Nouveautes v2.2 - Export Multi-Format](#-nouveautes-v22---export-multi-format)
 - [Nouveautes v2.1 - Fonctionnalites Avancees](#-nouveautes-v21---fonctionnalites-avancees)
+- [Nouveautes v2.0 - Pipeline HQ](#-nouveautes-v20---pipeline-hq)
 - [Installation](#-installation)
 - [Utilisation](#-utilisation)
 - [Pipeline Haute Qualite](#-pipeline-haute-qualite)
@@ -64,6 +66,109 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - **CLI complete**: Scripts en ligne de commande avec options avancees
 - **Interface Web**: Application Gradio intuitive
 - **Pipeline HQ**: Script dedie pour qualite maximale
+
+---
+
+## Nouveautes v2.3 - Style ElevenLabs
+
+### Respirations Realistes
+
+Nouvelle generation de respirations basee sur la recherche bio-acoustique :
+
+- **Bruit rose** au lieu de bruit blanc (spectre plus naturel)
+- **Formants respiratoires** (resonances du tract vocal)
+- **Jitter d'amplitude** (micro-variations naturelles)
+- **Support samples optionnels** (hybrid: synthese + samples reels)
+
+### Contours d'Intonation Phrase-Level
+
+Detection et application automatique des patterns prosodiques :
+
+| Type | Pattern | Exemple |
+|------|---------|---------|
+| DECLARATIVE | Descente finale (-2 a -4 st) | "Il est parti." |
+| QUESTION_YN | Montee finale (+3 a +5 st) | "Tu viens ?" |
+| QUESTION_WH | Pic initial puis descente | "Ou vas-tu ?" |
+| EXCLAMATION | Pic fort puis descente rapide | "Incroyable !" |
+| CONTINUATION | Legere montee (+1 st) | "D'abord, ..." |
+| SUSPENSE | Descente lente, pause | "Et puis..." |
+
+### Micro-Variations de Timing
+
+Humanisation du rythme pour eviter l'effet "robotique" :
+
+- **Variation gaussienne des pauses** (±5% par defaut)
+- **Rythme adaptatif** selon la structure syntaxique
+- **Micro-pauses avant mots importants** (0.05s)
+
+```python
+# Configuration v2.3
+config = ExtendedPipelineConfig(
+    enable_advanced_breaths=True,
+    enable_intonation_contours=True,
+    intonation_strength=0.7,
+    enable_timing_humanization=True,
+    pause_variation_sigma=0.05,
+    enable_emphasis_pauses=True,
+)
+```
+
+---
+
+## Nouveautes v2.2 - Export Multi-Format
+
+### Export Audio MP3
+
+Le moteur hybride supporte maintenant l'export direct en MP3 :
+
+```python
+from src.tts_hybrid_engine import HybridTTSEngine
+
+engine = HybridTTSEngine(mms_language='fra')
+
+# Export WAV (defaut)
+engine.synthesize_chapter(text, "chapitre.wav")
+
+# Export MP3
+engine.synthesize_chapter(text, "chapitre.mp3", output_format="mp3")
+
+# MP3 avec bitrate personnalise
+engine.synthesize_chapter(text, "chapitre.mp3", output_format="mp3", mp3_bitrate="256k")
+```
+
+### Export de Livres (PDF, EPUB, HTML, TXT)
+
+Nouveau module `book_exporter.py` pour exporter vos livres en plusieurs formats :
+
+```python
+from src.book_exporter import BookExporter, export_markdown_book
+
+# Export rapide depuis un dossier de chapitres Markdown
+results = export_markdown_book(
+    chapters_dir="path/to/chapters",
+    output_dir="output/ebook",
+    title="Mon Livre",
+    author="Auteur",
+    formats=["pdf", "epub", "html", "txt"]
+)
+
+# Ou utilisation avancee
+exporter = BookExporter(title="Mon Livre", author="Auteur")
+exporter.add_chapter("Chapitre 1", "Contenu du chapitre...")
+exporter.add_chapter_from_markdown("chapitre-02.md")
+
+exporter.export_pdf("livre.pdf")
+exporter.export_epub("livre.epub")
+exporter.export_html("livre.html")
+exporter.export_txt("livre.txt")
+```
+
+| Format | Extension | Description |
+|--------|-----------|-------------|
+| **PDF** | `.pdf` | Document portable avec table des matieres |
+| **EPUB** | `.epub` | Format ebook standard (Kindle, Kobo, liseuses) |
+| **HTML** | `.html` | Page web avec dark mode automatique |
+| **TXT** | `.txt` | Texte brut formate |
 
 ---
 
@@ -524,6 +629,16 @@ python audioreader.py --gui
 | Conversations | `conversation_generator.py` | Dialogues multi-speakers |
 | Pipeline+ | `hq_pipeline_extended.py` | Pipeline unifie etendu |
 
+**Modules v2.2-2.3 :**
+
+| Module | Fichier | Description |
+|--------|---------|-------------|
+| Moteur Hybride | `tts_hybrid_engine.py` | MMS + Kokoro, export MP3 |
+| Export Livres | `book_exporter.py` | PDF, EPUB, HTML, TXT |
+| Bio-Acoustique | `bio_acoustics.py` | Respirations realistes |
+| Intonation | `intonation_contour.py` | Contours prosodiques |
+| Timing | `timing_humanizer.py` | Micro-variations de rythme |
+
 ### Exemple de Sortie
 
 ```
@@ -555,7 +670,7 @@ python audioreader.py --gui
 ```
 AudioReader/
 ├── audioreader.py          # Script principal CLI (standard)
-├── audioreader_hq.py       # Script CLI haute qualite (NOUVEAU)
+├── audioreader_hq.py       # Script CLI haute qualite
 ├── app.py                  # Interface Gradio
 ├── postprocess.py          # Post-traitement audio legacy
 ├── example_multivoix.py    # Exemple multi-voix
@@ -586,7 +701,15 @@ AudioReader/
 │   ├── synthesis_cache.py      # Cache + parallelisation
 │   ├── emotion_control.py      # Controle emotion + phonemes IPA
 │   ├── conversation_generator.py # Dialogues multi-speakers
-│   └── hq_pipeline_extended.py # Pipeline unifie etendu
+│   ├── hq_pipeline_extended.py # Pipeline unifie etendu
+│   │
+│   │   # --- MODULES v2.2-2.3 ---
+│   ├── tts_hybrid_engine.py    # Moteur hybride MMS+Kokoro, MP3
+│   ├── tts_mms_engine.py       # Moteur MMS-TTS (Facebook)
+│   ├── book_exporter.py        # Export PDF, EPUB, HTML, TXT
+│   ├── bio_acoustics.py        # Respirations realistes
+│   ├── intonation_contour.py   # Contours prosodiques
+│   └── timing_humanizer.py     # Micro-variations de rythme
 │
 ├── config_multivoix_example.json  # Config exemple
 ├── books/                  # Livres sources
@@ -754,4 +877,4 @@ Oui, avec le pipeline etendu (`hq_pipeline_extended.py`), le cache est actif par
 
 ---
 
-*AudioReader v2.1 - Convertissez vos livres en audiobooks de qualite professionnelle*
+*AudioReader v2.3 - Convertissez vos livres en audiobooks de qualite professionnelle*

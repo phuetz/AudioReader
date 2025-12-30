@@ -485,46 +485,58 @@ class BreathPlacer:
     - Avant les phrases longues
     - Apres les virgules dans des phrases complexes
     - Aux transitions emotionnelles
+    - Ajoute de la variabilite naturelle (humanisation)
     """
 
-    # Duree des respirations en secondes
-    BREATH_SHORT = 0.15
-    BREATH_MEDIUM = 0.25
-    BREATH_LONG = 0.4
-
-    def __init__(self, words_per_breath: int = 25):
+    def __init__(self, words_per_breath: int = 20):
         """
         Args:
             words_per_breath: Nombre moyen de mots avant respiration
         """
         self.words_per_breath = words_per_breath
+        import random
+        self.rng = random.Random()  # Generateur dedie pour reproductibilite si besoin
 
     def add_breath_pauses(self, text: str) -> str:
         """
         Ajoute des marqueurs de respiration au texte.
-
-        Les marqueurs sont des pauses silencieuses: [pause:0.2]
+        Les marqueurs sont: [breath:soft], [breath:deep], ou [pause:0.x]
         """
         sentences = re.split(r'(?<=[.!?])\s+', text)
         result = []
 
         word_count = 0
+        current_threshold = self._get_threshold()
+
         for sentence in sentences:
             words = len(sentence.split())
+            
+            # Gestion des phrases tres longues (respiration au milieu)
+            if words > 25:
+                # Essayer de couper a une virgule
+                parts = sentence.split(',')
+                if len(parts) > 1:
+                    mid_index = len(parts) // 2
+                    parts[mid_index] = "[breath:soft] " + parts[mid_index].strip()
+                    sentence = ", ".join(parts)
 
-            # Respiration avant phrase longue
-            if words > 15 and word_count > 10:
-                result.append(f"[pause:{self.BREATH_MEDIUM}]")
+            # Respiration avant la phrase si le besoin s'en fait sentir
+            if word_count > current_threshold:
+                breath_type = "deep" if word_count > current_threshold * 1.5 else "soft"
+                result.append(f"[breath:{breath_type}]")
                 word_count = 0
+                current_threshold = self._get_threshold()
 
             result.append(sentence)
             word_count += words
 
-            # Respiration periodique
-            if word_count >= self.words_per_breath:
-                word_count = 0
-
         return " ".join(result)
+
+    def _get_threshold(self) -> int:
+        """Retourne un seuil de mots variable (variation naturelle)."""
+        # Variation de +/- 30% autour de la moyenne
+        variation = self.rng.uniform(0.7, 1.3)
+        return int(self.words_per_breath * variation)
 
     def insert_breath_markers(
         self,
@@ -532,19 +544,35 @@ class BreathPlacer:
     ) -> list[EmotionAnalysis]:
         """
         Ajoute des indications de respiration aux analyses.
-
         Modifie prosody.breath_before selon le contexte.
         """
+        word_accum = 0
+        threshold = self._get_threshold()
+
         for i, analysis in enumerate(analyses):
+            word_count = len(analysis.text.split())
+            word_accum += word_count
+            
+            needs_breath = False
+
             # Respiration avant changement d'emotion forte
             if i > 0:
                 prev = analyses[i - 1]
                 if (analysis.intensity in [Intensity.HIGH, Intensity.EXTREME]
                         and prev.emotion != analysis.emotion):
-                    analysis.prosody.breath_before = True
+                    needs_breath = True
+            
+            # Respiration physiologique (manque d'air)
+            if word_accum > threshold:
+                needs_breath = True
+                word_accum = 0
+                threshold = self._get_threshold()
 
-            # Respiration avant suspense
-            if analysis.emotion == Emotion.SUSPENSE:
+            # Respiration avant suspense ou peur
+            if analysis.emotion in [Emotion.SUSPENSE, Emotion.FEAR] and analysis.intensity != Intensity.LOW:
+                needs_breath = True
+
+            if needs_breath:
                 analysis.prosody.breath_before = True
 
         return analyses

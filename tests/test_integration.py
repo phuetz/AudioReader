@@ -13,38 +13,41 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def test_french_preprocessor():
-    """Test du préprocesseur français."""
+    """Test du préprocesseur français (version simplifiée)."""
     from french_preprocessor import FrenchTextPreprocessor
 
     p = FrenchTextPreprocessor()
 
-    # Tests basés sur l'analyse MFCC+DTW de Lisa
+    # Tests pour la version simplifiée (num2words, abréviations, acronymes)
     tests = [
-        ("chose", "cho-ze"),
-        ("canapé", "canna-pé"),
-        ("chérie", "ché-rie"),
-        ("figée", "fi-gée"),
-        ("fenêtre", "feu-naitre"),
+        # Conversion heures
         ("19h30", "dix-neuf heures trente"),
-        # Ces mots restent inchangés (original est meilleur)
+        ("8h00", "huit heures"),
+        # Abréviations (capitalisées)
+        ("M. Dupont", "Monsieur Dupont"),
+        ("Mme Martin", "Madame Martin"),
+        ("Dr House", "Docteur House"),
+        # Acronymes
+        ("SNCF", "S.N.C.F"),
+        ("TGV", "T.G.V"),
+        # Mots normaux (inchangés)
+        ("Bonjour", "Bonjour"),
         ("année", "année"),
-        ("présage", "présage"),
-        ("rentré", "rentré"),
         ("collègue", "collègue"),
     ]
 
     print("Test préprocesseur français:")
-    all_passed = True
-    for word, expected in tests:
-        result = p.process(word)
+    failed = []
+    for input_text, expected in tests:
+        result = p.process(input_text)
         status = "✓" if result == expected else "✗"
         if result != expected:
-            all_passed = False
-            print(f"  {status} {word} -> {result} (attendu: {expected})")
+            failed.append(f"{input_text} -> {result} (attendu: {expected})")
+            print(f"  {status} {input_text} -> {result} (attendu: {expected})")
         else:
-            print(f"  {status} {word} -> {result}")
+            print(f"  {status} {input_text} -> {result}")
 
-    return all_passed
+    assert not failed, f"Échecs: {failed}"
 
 
 def test_dialogue_detector():
@@ -65,9 +68,9 @@ def test_dialogue_detector():
     for s in segments:
         print(f"    [{s.segment_type.value}] {s.text[:40]}...")
 
-    passed = has_dialogue and has_narration
-    print(f"  {'✓' if passed else '✗'} Dialogues et narration détectés")
-    return passed
+    assert has_dialogue, "Aucun dialogue détecté"
+    assert has_narration, "Aucune narration détectée"
+    print(f"  ✓ Dialogues et narration détectés")
 
 
 def test_audio_postprocess_config():
@@ -87,14 +90,14 @@ def test_audio_postprocess_config():
         ("target loudness -20 LUFS", config.target_loudness == -20.0),
     ]
 
-    all_passed = True
+    failed = []
     for name, check in checks:
         status = "✓" if check else "✗"
         print(f"  {status} {name}")
         if not check:
-            all_passed = False
+            failed.append(name)
 
-    return all_passed
+    assert not failed, f"Échecs: {failed}"
 
 
 def test_markdown_parser():
@@ -122,9 +125,8 @@ Ceci est le deuxième chapitre.
         for ch in chapters:
             print(f"    {ch.number}. {ch.title}")
 
-        passed = len(chapters) == 2
-        print(f"  {'✓' if passed else '✗'} 2 chapitres parsés")
-        return passed
+        assert len(chapters) == 2, f"Attendu 2 chapitres, obtenu {len(chapters)}"
+        print(f"  ✓ 2 chapitres parsés")
     finally:
         Path(temp_path).unlink()
 
@@ -147,10 +149,11 @@ def test_kokoro_availability():
             info = KOKORO_VOICES[vid]
             print(f"    - {vid}: {info['name']} ({info['lang']})")
 
-        return True  # Le test passe même si le modèle n'est pas installé
+        # Le test passe même si le modèle n'est pas installé (vérifie juste l'import)
+        assert len(KOKORO_VOICES) > 0, "Aucune voix Kokoro définie"
     except ImportError as e:
         print(f"\n⚠ Kokoro non disponible: {e}")
-        return True  # Pas une erreur critique
+        # Pas une erreur critique - le module peut ne pas être installé
 
 
 def main():

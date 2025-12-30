@@ -473,15 +473,50 @@ class TextNormalizer:
             # Verifier que c'est vraiment un chiffre romain
             if not all(c in self.ROMAN_VALUES for c in roman):
                 return match.group(0)
+
+            # Ignorer les lettres seules courantes (I, L, C, D, M, V, X)
+            # qui peuvent etre des articles ou abreviations
+            # Accepter seulement si c'est un vrai nombre romain (2+ chars ou contexte)
+            if len(roman) == 1:
+                # Une seule lettre: verifier le contexte
+                # Ex: "L'" n'est pas un chiffre romain, c'est l'article
+                # Ex: "I" seul pourrait etre "je" en anglais
+                return match.group(0)
+
             number = roman_to_int(roman)
             if number > 0:
                 return self.number_converter.convert(number)
             return match.group(0)
 
-        # Pattern pour chiffres romains (avec contexte)
-        # Ex: "chapitre III", "Louis XIV", "XXe siecle"
-        pattern = r'\b([IVXLCDM]+)\b'
-        return re.sub(pattern, replace_roman, text)
+        # Pattern pour chiffres romains avec suffixes ordinaux optionnels
+        # Ex: "chapitre III", "Louis XIV", "XXe siecle", "XIXeme"
+        # Exclure les cas suivis d'apostrophe (L'argent)
+        def replace_roman_with_ordinal(match):
+            roman = match.group(1)
+            ordinal_suffix = match.group(2) or ""
+
+            if not all(c in self.ROMAN_VALUES for c in roman):
+                return match.group(0)
+
+            if len(roman) == 1:
+                return match.group(0)
+
+            number = roman_to_int(roman)
+            if number > 0:
+                number_word = self.number_converter.convert(number)
+                if ordinal_suffix:
+                    # Ajouter le suffixe ordinal
+                    if self.lang == "fr":
+                        if number == 1:
+                            return "premier"
+                        return number_word + "ieme"
+                    else:
+                        return number_word + "th"
+                return number_word
+            return match.group(0)
+
+        pattern = r'\b([IVXLCDM]+)(e|eme|ème)?\b(?!\')'
+        return re.sub(pattern, replace_roman_with_ordinal, text, flags=re.IGNORECASE)
 
     def _normalize_numbers_with_units(self, text: str) -> str:
         """Convertit les nombres avec unites."""
@@ -637,7 +672,14 @@ class TextNormalizer:
     def _normalize_symbols(self, text: str) -> str:
         """Remplace les symboles par leur equivalent verbal."""
         for symbol, replacement in self.symbols.items():
-            text = text.replace(symbol, replacement)
+            if symbol == "#":
+                # Supprimer les # en debut de ligne (entetes Markdown)
+                text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
+                # Pour les hashtags restants (#mot), ne rien faire
+                # (le mot sera lu normalement sans le #)
+                text = re.sub(r'#(\w)', r'\1', text)
+            else:
+                text = text.replace(symbol, replacement)
         return text
 
     def _normalize_whitespace(self, text: str) -> str:

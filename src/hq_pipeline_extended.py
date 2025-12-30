@@ -9,6 +9,7 @@ Integration complete de:
 - Cache intelligent et parallelisation
 - Controle d'emotion et phonemes
 - Generation de conversations multi-speakers
+- v2.3: Respirations avancees, contours d'intonation, timing humanise
 """
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,6 +64,24 @@ from .conversation_generator import (
     Speaker
 )
 
+from .bio_acoustics import BioAudioGenerator
+from .dynamic_voice import DynamicVoiceManager
+
+# v2.3 modules
+from .breath_samples import HybridBreathGenerator
+from .intonation_contour import (
+    IntonationProcessor,
+    IntonationContour,
+    IntonationContourDetector
+)
+from .timing_humanizer import (
+    TimingHumanizer,
+    TimingConfig,
+    PauseCalculator,
+    TextTimingProcessor,
+    ClauseType
+)
+
 
 @dataclass
 class ExtendedPipelineConfig(HQPipelineConfig):
@@ -99,6 +118,21 @@ class ExtendedPipelineConfig(HQPipelineConfig):
     enable_phoneme_processing: bool = True
     custom_phonemes: Dict[str, str] = field(default_factory=dict)
 
+    # v2.3: Advanced breath generation
+    enable_advanced_breaths: bool = True
+    breath_samples_dir: Optional[Path] = None  # None = synthese uniquement
+    prefer_breath_samples: bool = True
+
+    # v2.3: Intonation contours
+    enable_intonation_contours: bool = True
+    intonation_strength: float = 0.7  # 0.0-1.0
+
+    # v2.3: Timing humanization
+    enable_timing_humanization: bool = True
+    pause_variation_sigma: float = 0.05  # 5% standard deviation
+    enable_emphasis_pauses: bool = True
+    emphasis_pause_duration: float = 0.05  # 50ms
+
     def save(self, path: Path):
         """Sauvegarde la configuration etendue."""
         data = {
@@ -124,6 +158,15 @@ class ExtendedPipelineConfig(HQPipelineConfig):
             "style_exaggeration": self.style_exaggeration,
             "enable_phoneme_processing": self.enable_phoneme_processing,
             "custom_phonemes": self.custom_phonemes,
+            # v2.3
+            "enable_advanced_breaths": self.enable_advanced_breaths,
+            "breath_samples_dir": str(self.breath_samples_dir) if self.breath_samples_dir else None,
+            "enable_intonation_contours": self.enable_intonation_contours,
+            "intonation_strength": self.intonation_strength,
+            "enable_timing_humanization": self.enable_timing_humanization,
+            "pause_variation_sigma": self.pause_variation_sigma,
+            "enable_emphasis_pauses": self.enable_emphasis_pauses,
+            "emphasis_pause_duration": self.emphasis_pause_duration,
         }
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -150,6 +193,13 @@ class ExtendedHQSegment(HQSegment):
 
     # Emotion control
     emotion_exaggeration: float = 0.5
+
+    # v2.3: Intonation and timing
+    intonation_contour: Optional[IntonationContour] = None
+    humanized_pause_before: float = 0.0
+    humanized_pause_after: float = 0.0
+    clause_type: Optional[ClauseType] = None
+    has_emphasis_pause: bool = False
 
 
 class ExtendedHQPipeline:
@@ -234,6 +284,55 @@ class ExtendedHQPipeline:
                 self.pronunciation_manager.add_phoneme(word, ipa)
         else:
             self.pronunciation_manager = None
+
+        # Dynamic Voice (Blending)
+        self.dynamic_voice_manager = DynamicVoiceManager()
+
+        # v2.3: Advanced breath generation
+        if self.config.enable_advanced_breaths:
+            self.breath_generator = HybridBreathGenerator(
+                sample_rate=24000,
+                samples_dir=self.config.breath_samples_dir,
+                prefer_samples=self.config.prefer_breath_samples
+            )
+        else:
+            self.breath_generator = BioAudioGenerator(
+                sample_rate=24000,
+                use_advanced_breaths=False
+            )
+
+        # v2.3: Intonation contours
+        if self.config.enable_intonation_contours:
+            self.intonation_processor = IntonationProcessor(
+                sample_rate=24000,
+                language=self.config.lang,
+                strength=self.config.intonation_strength,
+                enabled=True
+            )
+            self.intonation_detector = IntonationContourDetector(
+                language=self.config.lang
+            )
+        else:
+            self.intonation_processor = None
+            self.intonation_detector = None
+
+        # v2.3: Timing humanization
+        if self.config.enable_timing_humanization:
+            timing_config = TimingConfig(
+                pause_variation_sigma=self.config.pause_variation_sigma,
+                enable_emphasis_pauses=self.config.enable_emphasis_pauses,
+                emphasis_pause_duration=self.config.emphasis_pause_duration
+            )
+            self.timing_humanizer = TimingHumanizer(
+                config=timing_config,
+                language=self.config.lang
+            )
+            self.pause_calculator = PauseCalculator(
+                humanizer=self.timing_humanizer
+            )
+        else:
+            self.timing_humanizer = None
+            self.pause_calculator = None
 
     def _process_audio_tags(self, text: str) -> ProcessedSegment:
         """Traite les audio tags dans le texte."""
@@ -364,15 +463,58 @@ class ExtendedHQPipeline:
                 base_seg.emotion.value if base_seg.emotion else None
             )
 
+            # --- DYNAMIC VOICE BLENDING ---
+            # Uniquement si on utilise Kokoro (détecté par le format de la voix ou config)
+            # On assume que si la voix ne contient pas "Neural", c'est du Kokoro
+            final_voice_id = base_seg.voice_id
+            if "Neural" not in final_voice_id: # Simple heuristic
+                final_voice_id = self.dynamic_voice_manager.get_voice_config(
+                    base_voice=base_seg.voice_id,
+                    emotion=base_seg.emotion,
+                    intensity=base_seg.intensity
+                )
+            
+            # ---
+
             # Recuperer les parametres de morphing
             morph_settings = self._get_morph_settings(base_seg.speaker)
 
             # Verifier si c'est une voix clonee
             is_cloned = False
             cloned_name = None
-            if self.cloning_manager and base_seg.voice_id.startswith("cloned_"):
+            if self.cloning_manager and final_voice_id.startswith("cloned_"):
                 is_cloned = True
-                cloned_name = base_seg.voice_id
+                cloned_name = final_voice_id
+
+            # --- v2.3: Intonation contour detection ---
+            detected_contour = None
+            if self.intonation_detector:
+                detected_contour = self.intonation_detector.detect(clean_text)
+
+            # --- v2.3: Timing humanization ---
+            humanized_pause_before = base_seg.pause_before
+            humanized_pause_after = base_seg.pause_after
+            detected_clause_type = None
+            has_emphasis = False
+
+            if self.timing_humanizer:
+                # Humanize pauses
+                humanized_pause_before = self.timing_humanizer.humanize_pause(
+                    base_seg.pause_before
+                )
+                humanized_pause_after = self.timing_humanizer.humanize_pause(
+                    base_seg.pause_after
+                )
+
+                # Detect clause type for speed adjustment
+                detected_clause_type = self.timing_humanizer.get_clause_type(clean_text)
+
+                # Check for emphasis pauses
+                if self.config.enable_emphasis_pauses:
+                    processed_text = self.timing_humanizer.add_emphasis_pauses(clean_text)
+                    if processed_text != clean_text:
+                        has_emphasis = True
+                        clean_text = processed_text
 
             # Creer le segment etendu
             extended_seg = ExtendedHQSegment(
@@ -381,7 +523,7 @@ class ExtendedHQPipeline:
                 index=base_seg.index,
                 speaker=base_seg.speaker,
                 speaker_type=base_seg.speaker_type,
-                voice_id=base_seg.voice_id,
+                voice_id=final_voice_id, # Voix modifiée ici
                 emotion=base_seg.emotion,
                 intensity=base_seg.intensity,
                 prosody=base_seg.prosody,
@@ -402,6 +544,13 @@ class ExtendedHQPipeline:
                 is_cloned_voice=is_cloned,
                 cloned_voice_name=cloned_name,
                 emotion_exaggeration=self.config.style_exaggeration,
+
+                # v2.3 attributes
+                intonation_contour=detected_contour,
+                humanized_pause_before=humanized_pause_before,
+                humanized_pause_after=humanized_pause_after,
+                clause_type=detected_clause_type,
+                has_emphasis_pause=has_emphasis,
             )
 
             extended_segments.append(extended_seg)
@@ -448,12 +597,15 @@ class ExtendedHQPipeline:
                 for seg in segments
             ]
 
+            # Fonction de synthese qui extrait l'audio si c'est un tuple
+            def wrapped_synth_fn(s):
+                res = synthesize_fn(s["text"], s["voice_id"], s["speed"])
+                return res[0] if isinstance(res, tuple) else res
+
             # Synthese parallele avec cache
             audios = self.parallel_synth.synthesize_batch(
                 batch,
-                synthesize_fn=lambda s: synthesize_fn(
-                    s["text"], s["voice_id"], s["speed"]
-                ),
+                synthesize_fn=wrapped_synth_fn,
                 progress_callback=progress_callback
             )
 
@@ -471,7 +623,9 @@ class ExtendedHQPipeline:
                     audio, _ = sf.read(str(cached))
                     self._stats["cache_hits"] += 1
                 else:
-                    audio = synthesize_fn(seg.text, seg.voice_id, seg.final_speed)
+                    audio_full = synthesize_fn(seg.text, seg.voice_id, seg.final_speed)
+                    audio = audio_full[0] if isinstance(audio_full, tuple) else audio_full
+                    
                     self._stats["cache_misses"] += 1
 
                     # Mettre en cache
@@ -489,7 +643,36 @@ class ExtendedHQPipeline:
         if self.config.enable_voice_morphing:
             audios = self._apply_morphing(segments, audios)
 
+        # v2.3: Appliquer les contours d'intonation
+        if self.config.enable_intonation_contours and self.intonation_processor:
+            audios = self._apply_intonation_contours(segments, audios)
+
         return audios
+
+    def _apply_intonation_contours(
+        self,
+        segments: List[ExtendedHQSegment],
+        audios: List[np.ndarray]
+    ) -> List[np.ndarray]:
+        """Applique les contours d'intonation aux audios."""
+        processed = []
+
+        for seg, audio in zip(segments, audios):
+            if seg.intonation_contour and seg.intonation_contour != IntonationContour.NEUTRAL:
+                try:
+                    audio = self.intonation_processor.applicator.apply_contour(
+                        audio,
+                        seg.intonation_contour,
+                        strength=self.config.intonation_strength
+                    )
+                except Exception as e:
+                    # En cas d'erreur, garder l'audio original
+                    import logging
+                    logging.warning(f"Erreur application contour: {e}")
+
+            processed.append(audio)
+
+        return processed
 
     def _apply_morphing(
         self,
@@ -565,6 +748,11 @@ def create_extended_pipeline(
         kwargs.setdefault("enable_cache", True)
         kwargs.setdefault("enable_parallel", True)
         kwargs.setdefault("enable_phoneme_processing", True)
+        # v2.3 features
+        kwargs.setdefault("enable_advanced_breaths", True)
+        kwargs.setdefault("enable_intonation_contours", True)
+        kwargs.setdefault("enable_timing_humanization", True)
+        kwargs.setdefault("enable_emphasis_pauses", True)
 
     config = ExtendedPipelineConfig(
         lang=lang,
@@ -589,6 +777,8 @@ class AudiobookGenerator:
     ):
         self.pipeline = ExtendedHQPipeline(config)
         self.tts_engine = tts_engine
+        # v2.3: Use the pipeline's breath generator (hybrid or basic)
+        self.breath_generator = self.pipeline.breath_generator
 
     def generate_audiobook(
         self,
@@ -632,8 +822,24 @@ class AudiobookGenerator:
 
             # Synthetiser
             if self.tts_engine:
+                from .tts_unified import TTSEngine
+                
+                # Mapper le moteur
+                engine_map = {
+                    "auto": TTSEngine.AUTO,
+                    "kokoro": TTSEngine.KOKORO,
+                    "edge-tts": TTSEngine.EDGE_TTS
+                }
+                selected_engine = engine_map.get(self.pipeline.config.tts_engine, TTSEngine.AUTO)
+
                 def synth_fn(text, voice, speed):
-                    return self.tts_engine.synthesize(text, voice, speed)
+                    return self.tts_engine.synthesize(
+                        text, 
+                        voice=voice, 
+                        speed=speed, 
+                        lang=self.pipeline.config.lang,
+                        engine=selected_engine
+                    )
 
                 audios = self.pipeline.synthesize_segments(
                     segments,
@@ -683,22 +889,70 @@ class AudiobookGenerator:
         audios: List[np.ndarray],
         sample_rate: int = 24000
     ) -> np.ndarray:
-        """Concatene les audios avec les pauses appropriees."""
+        """
+        Concatene les audios avec pauses bio-acoustiques.
+
+        v2.3: Utilise les pauses humanisees et le generateur hybride.
+        """
         result_parts = []
 
-        for seg, audio in zip(segments, audios):
-            # Pause avant
-            if seg.pause_before > 0:
-                pause_samples = int(seg.pause_before * sample_rate)
-                result_parts.append(np.zeros(pause_samples, dtype=np.float32))
+        # Helper pour generer silence/room tone
+        def generate_silence(duration: float) -> np.ndarray:
+            if hasattr(self.breath_generator, 'synth_generator'):
+                # HybridBreathGenerator
+                return self.breath_generator.synth_generator.generate_silence(duration)
+            else:
+                # BioAudioGenerator direct
+                return self.breath_generator.generate_silence(duration)
 
-            # Audio
+        # Helper pour generer respiration
+        def generate_breath(breath_type: str = "soft", duration: float = 0.3) -> np.ndarray:
+            if hasattr(self.breath_generator, 'generate_breath'):
+                return self.breath_generator.generate_breath(breath_type, duration)
+            else:
+                return self.breath_generator.generate_breath(type=breath_type, duration=duration)
+
+        # Helper pour generer bruit de bouche
+        def generate_mouth_noise() -> np.ndarray:
+            if hasattr(self.breath_generator, 'synth_generator'):
+                return self.breath_generator.synth_generator.generate_mouth_noise()
+            else:
+                return self.breath_generator.generate_mouth_noise()
+
+        # Ajouter room tone initial
+        result_parts.append(generate_silence(0.5))
+
+        for seg, audio in zip(segments, audios):
+            # v2.3: Utiliser les pauses humanisees si disponibles
+            pause_before = seg.humanized_pause_before if seg.humanized_pause_before > 0 else seg.pause_before
+            pause_after = seg.humanized_pause_after if seg.humanized_pause_after > 0 else seg.pause_after
+
+            # 1. Gestion des respirations avant (definies par emotion_analyzer)
+            if hasattr(seg.prosody, 'breath_before') and seg.prosody and seg.prosody.breath_before:
+                breath = generate_breath("soft", 0.3)
+                result_parts.append(breath)
+                # Petit silence apres respiration
+                result_parts.append(generate_silence(0.1))
+
+            # 2. Pause avant explicite (Room Tone au lieu de 0)
+            if pause_before > 0:
+                # Si pause longue, inserer un bruit de bouche aleatoire parfois
+                if pause_before > 1.0 and np.random.random() < 0.2:
+                    result_parts.append(generate_silence(pause_before * 0.8))
+                    result_parts.append(generate_mouth_noise())
+                    result_parts.append(generate_silence(pause_before * 0.2))
+                else:
+                    result_parts.append(generate_silence(pause_before))
+
+            # 3. Audio du segment
             result_parts.append(audio)
 
-            # Pause apres
-            if seg.pause_after > 0:
-                pause_samples = int(seg.pause_after * sample_rate)
-                result_parts.append(np.zeros(pause_samples, dtype=np.float32))
+            # 4. Pause apres (Room Tone)
+            if pause_after > 0:
+                result_parts.append(generate_silence(pause_after))
+
+        # Room tone final
+        result_parts.append(generate_silence(1.0))
 
         return np.concatenate(result_parts)
 

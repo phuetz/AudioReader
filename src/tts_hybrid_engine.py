@@ -9,13 +9,16 @@ Usage:
     from src.tts_hybrid_engine import HybridTTSEngine
 
     engine = HybridTTSEngine()
-    engine.synthesize_chapter(text, "output.wav")
+    engine.synthesize_chapter(text, "output.wav")  # WAV
+    engine.synthesize_chapter(text, "output.mp3", output_format="mp3")  # MP3
 """
 import numpy as np
 from pathlib import Path
-from typing import Optional, Dict, List, Set, Tuple, Callable
+from typing import Optional, Dict, List, Set, Tuple, Callable, Literal
 from dataclasses import dataclass, field
 import re
+import subprocess
+import shutil
 
 # Import des corrections (optionnel)
 try:
@@ -448,14 +451,69 @@ class HybridTTSEngine:
         # Défaut
         return "af_heart"
 
+    def _convert_to_mp3(
+        self,
+        wav_path: Path,
+        mp3_path: Path,
+        bitrate: str = "192k"
+    ) -> bool:
+        """
+        Convertit un fichier WAV en MP3.
+
+        Args:
+            wav_path: Chemin du fichier WAV source
+            mp3_path: Chemin du fichier MP3 destination
+            bitrate: Bitrate du MP3 (64k, 128k, 192k, 256k, 320k)
+
+        Returns:
+            True si la conversion a réussi
+        """
+        if not shutil.which("ffmpeg"):
+            print("⚠️ ffmpeg non trouvé, impossible de convertir en MP3")
+            return False
+
+        try:
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", str(wav_path),
+                "-codec:a", "libmp3lame",
+                "-b:a", bitrate,
+                "-q:a", "2",
+                str(mp3_path)
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"⚠️ Erreur ffmpeg: {result.stderr}")
+                return False
+            return True
+        except Exception as e:
+            print(f"⚠️ Erreur de conversion MP3: {e}")
+            return False
+
     def synthesize_chapter(
         self,
         text: str,
         output_path: Path,
-        voice_mapping: Optional[Dict[str, str]] = None
+        voice_mapping: Optional[Dict[str, str]] = None,
+        output_format: Literal["wav", "mp3"] = "wav",
+        mp3_bitrate: str = "192k"
     ) -> bool:
         """
         Synthétise un chapitre complet en mode hybride.
+
+        Args:
+            text: Texte du chapitre à synthétiser
+            output_path: Chemin du fichier de sortie
+            voice_mapping: Mapping personnage -> voix Kokoro
+            output_format: Format de sortie ("wav" ou "mp3")
+            mp3_bitrate: Bitrate pour MP3 (64k, 128k, 192k, 256k, 320k)
+
+        Returns:
+            True si la synthèse a réussi
         """
         import soundfile as sf
 
@@ -538,10 +596,32 @@ class HybridTTSEngine:
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(str(output_path), final_audio, sample_rate)
+
+        # Déterminer le format à partir de l'extension ou du paramètre
+        if output_format == "mp3" or str(output_path).lower().endswith(".mp3"):
+            # Générer d'abord en WAV temporaire puis convertir
+            wav_path = output_path.with_suffix(".wav")
+            sf.write(str(wav_path), final_audio, sample_rate)
+
+            mp3_path = output_path.with_suffix(".mp3")
+            print(f"\nConversion en MP3 ({mp3_bitrate})...")
+            if self._convert_to_mp3(wav_path, mp3_path, mp3_bitrate):
+                # Supprimer le WAV temporaire
+                wav_path.unlink()
+                final_path = mp3_path
+                # Afficher la taille
+                size_mb = mp3_path.stat().st_size / (1024 * 1024)
+                print(f"   Taille: {size_mb:.1f} MB")
+            else:
+                print("⚠️ Échec conversion MP3, fichier WAV conservé")
+                final_path = wav_path
+        else:
+            # Sortie WAV directe
+            sf.write(str(output_path), final_audio, sample_rate)
+            final_path = output_path
 
         duration = len(final_audio) / sample_rate
-        print(f"\n✅ Audio hybride: {output_path}")
+        print(f"\n✅ Audio hybride: {final_path}")
         print(f"   Durée: {duration:.1f}s ({duration/60:.1f} min)")
 
         return True

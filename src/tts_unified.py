@@ -406,8 +406,17 @@ class UnifiedTTS:
         """Prétraite le texte selon la langue."""
         lang_base = lang.split("-")[0]
 
-        if lang_base == "fr" and self._french_preprocessor:
-            return self._french_preprocessor.process(text)
+        if lang_base == "fr":
+            # Initialiser à la volée si pas fait (lazy loading)
+            if self._french_preprocessor is None and self.config.use_french_preprocessor:
+                try:
+                    from src.french_preprocessor import FrenchTextPreprocessor
+                    self._french_preprocessor = FrenchTextPreprocessor()
+                except ImportError as e:
+                    print(f"Warning: French preprocessor not available: {e}")
+
+            if self._french_preprocessor:
+                return self._french_preprocessor.process(text)
 
         return text
 
