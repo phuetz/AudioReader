@@ -422,7 +422,21 @@ Moteurs TTS (tous gratuits):
         help="Afficher les moteurs et voix disponibles"
     )
 
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Lancer l'interface graphique (Gradio)"
+    )
+
     args = parser.parse_args()
+
+    # Lancer le GUI
+    if args.gui:
+        print("Lancement de l'interface graphique...")
+        from app import create_interface
+        demo = create_interface()
+        demo.launch()
+        return 0
 
     # Afficher les voix
     if args.list_voices:

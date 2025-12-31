@@ -30,7 +30,7 @@ python audio_reader.py livre.md --hq --clone ma_voix.wav --multivoice --master
 python audio_reader.py --gui
 
 # List available voices
-python audioreader.py --list-voices
+python audio_reader.py --list-voices
 ```
 
 ### Testing
@@ -57,7 +57,7 @@ pytest tests/test_audio_tags.py -v
 python run_tests.py --coverage
 
 # Test bio-acoustics features
-python test_bio_improvements.py
+python tests/test_bio_improvements.py
 ```
 
 ### Audio Post-processing
@@ -144,6 +144,11 @@ python generate_tome1.py
 **Utilities (v2.4):**
 - `preview_generator.py` - Quick 30s preview generation
 - `book_exporter.py` - Export to PDF, EPUB, HTML, TXT
+
+**v3.0 Platform Modules:**
+- `input_converter.py` - Universal file converter (PDF/EPUB → Markdown)
+- `audio_extractor.py` - Video to WAV extraction (ffmpeg) for voice cloning from movies
+- `podcast_server.py` - Local RSS podcast server with QR code generation
 
 ### HQ Pipeline Flow
 
@@ -522,6 +527,109 @@ print(state.mood_trend)  # "stable", "improving", or "declining"
 ```
 
 **Fallback:** Uses keyword-based detection if LLM unavailable.
+
+## v3.0 Platform Features
+
+### Universal Input Converter
+
+`InputConverter` handles PDF and EPUB files, converting them to Markdown:
+
+```python
+from src.input_converter import InputConverter
+
+converter = InputConverter()
+
+# Convert PDF to Markdown
+md_path = converter.convert_to_markdown(Path("book.pdf"))
+
+# Convert EPUB to Markdown
+md_path = converter.convert_to_markdown(Path("book.epub"))
+
+# Already .md or .txt files are returned as-is
+md_path = converter.convert_to_markdown(Path("book.md"))
+```
+
+**PDF conversion features:**
+- Heuristic title detection based on font size
+- Text extraction with paragraph reconstruction
+- Page-by-page processing
+
+**EPUB conversion features:**
+- Metadata extraction (title, author)
+- HTML to Markdown conversion
+- Chapter separator insertion
+
+### Audio Extractor (Voice Cloning from Video)
+
+`AudioExtractor` extracts audio segments from video files for voice cloning:
+
+```python
+from src.audio_extractor import AudioExtractor
+
+extractor = AudioExtractor()
+
+# Extract segment from video
+success = extractor.extract_segment(
+    video_path="movie.mp4",
+    output_path="voice_sample.wav",
+    start_time="00:01:30",  # 1min 30sec
+    end_time="00:01:45"     # 15 seconds segment
+)
+
+# Get video duration
+duration = extractor.get_duration("movie.mp4")
+```
+
+**Features:**
+- Supports MP4, MKV, AVI, MOV, WebM
+- FFmpeg-based extraction (mono, 24kHz WAV output)
+- Time range selection for isolating clean voice samples
+
+### Podcast RSS Server
+
+`PodcastServer` streams generated audiobooks as a local podcast:
+
+```python
+from src.podcast_server import PodcastServer
+
+server = PodcastServer(
+    audio_dir="output/",
+    port=8080,
+    title="My Audiobooks"
+)
+
+# Generate QR code for mobile subscription
+qr_path = server.generate_qr_code()
+
+# Start serving
+server.start()  # Blocks, or use start_background()
+```
+
+**Features:**
+- Automatic RSS feed generation
+- QR code for easy mobile subscription
+- Compatible with Apple Podcasts, Pocket Casts, etc.
+- Zero file transfer needed (Wi-Fi streaming)
+
+### Web Interface (app.py)
+
+The Gradio web interface provides access to all v3.0 features:
+
+**Tabs:**
+1. **Texte** - Quick text-to-speech conversion
+2. **Livre** - Full book conversion with multi-voice
+3. **Clonage** - Voice cloning from video extraction
+4. **Podcast** - RSS server with QR code
+5. **Corrections** - Pronunciation glossary management
+
+**Launch:**
+```bash
+python app.py
+# or
+python audio_reader.py --gui
+
+# Opens http://localhost:7860
+```
 
 ## Language
 

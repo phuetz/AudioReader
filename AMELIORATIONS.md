@@ -14,19 +14,18 @@ Le projet a considérablement évolué par rapport à la roadmap initiale. De no
 - [x] **Voice Morphing & Cloning** (XTTS-v2) - *via `src/voice_cloning.py`*
 - [x] **Bio-acoustique** (Respiration, hésitations) - *via `src/bio_acoustics.py`*
 - [x] **Contrôle Intonation** (Courbes prosodiques) - *via `src/intonation_contour.py`*
+- [x] **Intégration CLI Unique** (Standard + HQ dans `audio_reader.py`)
 
 ---
 
-## 1. Intégration CLI (Priorité Haute)
+## 1. Interface Utilisateur Web (Priorité Haute)
 
-**État actuel:** Le script principal `audio_reader.py` utilise le moteur basique `UnifiedTTSEngine` et n'expose pas les fonctionnalités avancées (multi-voix, styles, bio-acoustique) présentes dans le pipeline HQ.
+**État actuel:** L'interface `web_interface.py` est basique et ne supporte pas encore le mode HQ ni le multi-voix.
 
 ### Objectifs
-- Mettre à jour `audio_reader.py` pour utiliser `HQPipelineExtended` via un flag `--hq` ou par défaut.
-- Exposer les options avancées en ligne de commande :
-  - `--multivoice` : Active la détection et l'attribution des dialogues.
-  - `--style` : Sélectionne un style de narration (ex: "thriller", "children").
-  - `--master` : Active le post-traitement audio.
+- Mettre à jour `web_interface.py` pour inclure un toggle "Mode HQ".
+- Permettre de configurer les options HQ (Mastering, Style) depuis l'interface.
+- Afficher les personnages détectés et permettre de choisir leur voix.
 
 ## 2. Interface Utilisateur & Expérience
 
@@ -49,9 +48,9 @@ Le projet a considérablement évolué par rapport à la roadmap initiale. De no
 ## Roadmap Révisée
 
 ### Phase 1 : Consolidation (Court terme)
-- [ ] Mettre à jour `audio_reader.py` pour supporter le pipeline HQ.
+- [x] Mettre à jour `audio_reader.py` pour supporter le pipeline HQ. (Terminé v2.4)
 - [ ] Nettoyer les scripts de démo et de test obsolètes à la racine.
-- [ ] Améliorer la documentation utilisateur (`README.md`) pour expliquer les fonctionnalités avancées.
+- [x] Améliorer la documentation utilisateur (`README.md`) pour expliquer les fonctionnalités avancées.
 
 ### Phase 2 : Interface & Accessibilité (Moyen terme)
 - [ ] Interface Web locale (Gradio/Streamlit).

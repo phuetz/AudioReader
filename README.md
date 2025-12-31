@@ -13,6 +13,7 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 ## Table des matieres
 
 - [Fonctionnalites](#-fonctionnalites)
+- [Nouveautes v3.0 - Plateforme Complete](#-nouveautes-v30---plateforme-complete)
 - [Nouveautes v2.4 - Outils et Moteurs](#-nouveautes-v24---outils-et-moteurs)
 - [Nouveautes v2.3 - Style ElevenLabs](#-nouveautes-v23---style-elevenlabs)
 - [Nouveautes v2.2 - Export Multi-Format](#-nouveautes-v22---export-multi-format)
@@ -68,6 +69,38 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - **CLI complete**: Scripts en ligne de commande avec options avancees
 - **Interface Web**: Application Gradio intuitive
 - **Pipeline HQ**: Script dedie pour qualite maximale
+
+---
+
+## Nouveautes v3.0 - Plateforme Complete
+
+### 1. Import Universel (PDF & EPUB)
+AudioReader accepte désormais n'importe quel fichier **PDF** ou **EPUB** comme source.
+- **Conversion automatique** : Glissez-déposez votre ebook dans l'interface, il est converti en Markdown structuré à la volée.
+- **Nettoyage intelligent** : Suppression automatique des en-têtes, pieds de page et numéros de page.
+
+### 2. Clonage de Voix depuis Vidéo 🎙️
+Créez votre propre banque de voix à partir de vos films ou vidéos préférés.
+- **Extraction Audio** : Uploader un fichier vidéo (MP4, MKV, AVI).
+- **Découpage** : Sélectionnez le segment idéal (ex: de 00:10 à 00:25).
+- **Enregistrement** : La voix est ajoutée instantanément à votre liste de narrateurs disponibles.
+
+### 3. Casting Acoustique (Pré-écoute) 👂
+Plus besoin de choisir "af_bella" à l'aveugle !
+- **Bouton Play** : Écoutez un échantillon de chaque voix directement dans l'interface.
+- **Génération dynamique** : Si l'échantillon n'existe pas, il est généré à la volée.
+
+### 4. Serveur Podcast RSS 📡
+Diffusez vos livres audio sur votre réseau local pour les écouter sur votre téléphone.
+- **Flux RSS automatique** : Génère un flux compatible Apple Podcasts / Pocket Casts.
+- **QR Code** : Scannez le code affiché dans l'interface pour vous abonner instantanément.
+- **Zéro transfert** : Pas besoin de copier les fichiers, tout se fait en streaming Wi-Fi.
+
+### 5. Export Multi-Formats (Ebook + Audio)
+Générez en un clic tous les formats pour votre liseuse et votre lecteur audio :
+- **Audio** : M4B (avec chapitres) ou MP3.
+- **Ebook** : PDF (mise en page soignée), EPUB (compatible Kindle/Kobo), HTML.
+- **Archive ZIP** : Téléchargez le tout dans un pack complet.
 
 ---
 
@@ -540,8 +573,11 @@ python3 -m venv venv
 source venv/bin/activate  # Linux/macOS
 # ou: venv\Scripts\activate  # Windows
 
-# Installer les dependances
+# Installer les dependances de base
 pip install -r requirements.txt
+
+# Installer les dependances v3.0 (PDF, EPUB, Podcast)
+pip install pymupdf ebooklib beautifulsoup4 qrcode fpdf2
 
 # Telecharger le modele Kokoro (~340 MB)
 curl -L -o kokoro-v1.0.onnx "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
@@ -551,16 +587,29 @@ curl -L -o voices-v1.0.bin "https://github.com/thewh1teagle/kokoro-onnx/releases
 ### Verifier l'installation
 
 ```bash
-python audioreader.py --list-voices
+python audio_reader.py --list-voices
 ```
 
 ---
 
 ## Utilisation
 
-### Synthese standard (Rapide)
+### Interface Graphique (Recommande)
 
-La commande par defaut utilise `MMS-TTS` pour le francais ou `Kokoro` pour l'anglais avec une configuration simplifiee.
+La version 3.0 est conçue pour être utilisée via l'interface Web qui regroupe tous les outils (Import, Clonage, Casting, Podcast).
+
+```bash
+# Lancer l'interface
+python app.py
+# ou
+python audio_reader.py --gui
+```
+
+Ouvrez ensuite **http://localhost:7860** dans votre navigateur.
+
+### Synthese standard (CLI)
+
+La commande par defaut utilise `MMS-TTS` pour le francais ou `Kokoro` pour l'anglais.
 
 ```bash
 # Convertir un livre avec les reglages par defaut
@@ -637,75 +686,37 @@ python audio_reader.py mon_livre.md --hq --multivoice --style storytelling --mas
 
 ---
 
-### Mode Haute Qualite (audioreader_hq.py) - NOUVEAU
+### Mode Haute Qualite (`audio_reader.py --hq`) - NOUVEAU
 
 ```bash
 # Pipeline HQ complet (multi-voix + emotions + post-processing)
-python audioreader_hq.py livre.md -o output/
+python audio_reader.py livre.md --hq -o output/
 
-# Analyse seule (sans generation audio)
-python audioreader_hq.py livre.md --analyze-only
+# HQ avec multi-voix et mastering
+python audio_reader.py livre.md --hq --multivoice --master
 
-# Avec configuration personnalisee
-python audioreader_hq.py livre.md --config config_hq.json
-
-# Options disponibles
-python audioreader_hq.py livre.md \
-    --lang fr \
-    --voice ff_siwis \
-    --speed 1.0 \
-    --no-emotions      # Desactiver l'analyse emotionnelle
-    --no-characters    # Desactiver le multi-voix
-    --no-enhance       # Desactiver le post-processing
-```
-
-### Configuration Multi-Voix Personnalisee
-
-Creer un fichier `config_hq.json` :
-
-```json
-{
-  "lang": "fr",
-  "narrator_voice": "ff_siwis",
-  "voice_mapping": {
-    "Marie": "af_bella",
-    "Pierre": "am_adam",
-    "Le docteur": "bm_george"
-  },
-  "auto_assign_voices": true,
-  "enable_emotion_analysis": true,
-  "enable_narrative_context": true,
-  "sentence_pause": 0.3,
-  "paragraph_pause": 0.8,
-  "target_lufs": -19.0
-}
+# HQ avec style specifique
+python audio_reader.py livre.md --hq --style dramatic
 ```
 
 ### Voice Blending (melange de voix)
 
 ```bash
 # Melange 60% Bella, 40% Adam
-python audioreader.py livre.md --voice "af_bella:60,am_adam:40"
+python audio_reader.py livre.md --voice "af_bella:60,am_adam:40"
 
 # Melange 50-50
-python audioreader.py livre.md --voice "af_bella,am_adam"
+python audio_reader.py livre.md --voice "af_bella,am_adam"
 ```
 
 ### Controle des pauses
 
 ```bash
 # Pauses plus longues entre paragraphes (1 seconde)
-python audioreader.py livre.md --paragraph-pause 1.0
+python audio_reader.py livre.md --paragraph-pause 1.0
 
 # Pauses plus courtes entre phrases (0.2 secondes)
-python audioreader.py livre.md --sentence-pause 0.2
-```
-
-### Interface graphique
-
-```bash
-python audioreader.py --gui
-# Ouvrir http://localhost:7860
+python audio_reader.py livre.md --sentence-pause 0.2
 ```
 
 ### Voix disponibles
@@ -842,58 +853,96 @@ python audioreader.py --gui
 
 ```
 AudioReader/
-├── audioreader.py          # Script principal CLI (standard)
-├── audioreader_hq.py       # Script CLI haute qualite
-├── app.py                  # Interface Gradio
+├── audio_reader.py         # Script CLI principal (Standard & HQ avec --hq)
+├── app.py                  # Interface Web Gradio (v3.0 complete)
+├── api_server.py           # API REST FastAPI (pour ChatGPT)
+├── mcp_server.py           # Serveur MCP (pour Claude Desktop)
 ├── postprocess.py          # Post-traitement audio legacy
-├── example_multivoix.py    # Exemple multi-voix
+├── run_tests.py            # Lanceur de tests pytest
 ├── kokoro-v1.0.onnx        # Modele TTS (310 MB)
 ├── voices-v1.0.bin         # Donnees voix (27 MB)
 │
 ├── src/
-│   ├── markdown_parser.py      # Parser multi-format (MD, EPUB)
-│   ├── tts_kokoro_engine.py    # Moteur Kokoro TTS + multi-voix
-│   ├── tts_engine.py           # Moteur Edge-TTS (fallback)
-│   ├── text_processor.py       # Chunking, prononciation base
-│   ├── audiobook_builder.py    # Metadonnees, export M4B/MP3
+│   │   # --- MOTEURS TTS ---
+│   ├── tts_engine.py           # Wrapper unifie (auto-selection)
+│   ├── tts_kokoro_engine.py    # Kokoro-82M (qualite ElevenLabs)
+│   ├── tts_mms_engine.py       # MMS-TTS Meta (1000+ langues)
+│   ├── tts_xtts_engine.py      # XTTS-v2 (clonage voix)
+│   ├── tts_hybrid_engine.py    # Hybride MMS+Kokoro + export MP3
+│   ├── tts_multivoice_xtts.py  # Multi-voix XTTS
+│   ├── tts_unified.py          # Abstraction TTS
 │   │
-│   │   # --- MODULES HQ v2.0 ---
-│   ├── text_normalizer.py      # Nombres, dates, symboles
-│   ├── character_detector.py   # Detection personnages/dialogues
-│   ├── emotion_analyzer.py     # Analyse emotionnelle
-│   ├── narrative_context.py    # Contexte narratif
-│   ├── emotion_continuity.py   # Continuite emotionnelle
-│   ├── advanced_preprocessor.py # Preprocesseur avance
-│   ├── hq_pipeline.py          # Pipeline unifie HQ
-│   ├── audio_enhancer.py       # Post-processing broadcast
+│   │   # --- TRAITEMENT TEXTE ---
+│   ├── markdown_parser.py      # Parser MD, EPUB, multi-fichiers
+│   ├── text_normalizer.py      # Nombres, dates, symboles -> mots
+│   ├── text_processor.py       # Chunking, corrections prononciation
+│   ├── french_preprocessor.py  # Normalisation specifique francais
+│   ├── advanced_preprocessor.py # Pipeline preprocessing complet
 │   │
-│   │   # --- MODULES AVANCES v2.1 ---
-│   ├── audio_tags.py           # Tags style ElevenLabs v3
+│   │   # --- ANALYSE PERSONNAGES & EMOTIONS ---
+│   ├── character_detector.py   # Detection dialogues et locuteurs
+│   ├── dialogue_detector.py    # Segmentation dialogue/narration
+│   ├── dialogue_attribution.py # Attribution QUI parle (v2.4)
+│   ├── emotion_analyzer.py     # Analyse sentiment + prosodie
+│   ├── emotion_continuity.py   # Transitions emotionnelles fluides
+│   ├── emotion_control.py      # Controle intensite + phonemes IPA
+│   ├── narrative_context.py    # Type narratif (action, description...)
+│   ├── narration_styles.py     # 7 styles (storytelling, dramatic...)
+│   │
+│   │   # --- BIO-ACOUSTIQUE & PROSODIE (v2.3) ---
+│   ├── bio_acoustics.py        # Respirations synthetiques realistes
+│   ├── breath_samples.py       # Gestionnaire samples/synthese hybride
+│   ├── intonation_contour.py   # Contours prosodiques phrase-level
+│   ├── timing_humanizer.py     # Micro-variations de timing
+│   ├── dynamic_voice.py        # Voice blending selon emotion
+│   ├── word_level_control.py   # Controle SSML-like mot-par-mot
+│   │
+│   │   # --- AUDIO TAGS & MORPHING (v2.1) ---
+│   ├── audio_tags.py           # Tags style ElevenLabs v3 (50+)
 │   ├── voice_morphing.py       # Pitch, formant, time stretch
-│   ├── voice_cloning.py        # Clonage XTTS-v2
-│   ├── synthesis_cache.py      # Cache + parallelisation
-│   ├── emotion_control.py      # Controle emotion + phonemes IPA
+│   ├── voice_cloning.py        # Gestionnaire clonage XTTS
+│   │
+│   │   # --- PIPELINES ---
+│   ├── hq_pipeline.py          # Pipeline HQ base (v2.0)
+│   ├── hq_pipeline_extended.py # Pipeline HQ etendu (v2.1-2.4)
+│   ├── synthesis_cache.py      # Cache intelligent + parallelisation
 │   ├── conversation_generator.py # Dialogues multi-speakers
-│   ├── hq_pipeline_extended.py # Pipeline unifie etendu
 │   │
-│   │   # --- MODULES v2.2-2.3 ---
-│   ├── tts_hybrid_engine.py    # Moteur hybride MMS+Kokoro, MP3
-│   ├── tts_mms_engine.py       # Moteur MMS-TTS (Facebook)
-│   ├── book_exporter.py        # Export PDF, EPUB, HTML, TXT
-│   ├── bio_acoustics.py        # Respirations realistes
-│   ├── intonation_contour.py   # Contours prosodiques
-│   ├── timing_humanizer.py     # Micro-variations de rythme
-│   │
-│   │   # --- MODULES v2.4 ---
-│   ├── tts_xtts_engine.py      # Moteur XTTS-v2 (clonage voix)
+│   │   # --- POST-TRAITEMENT AUDIO ---
+│   ├── audio_enhancer.py       # EQ, compression, loudness (ffmpeg)
+│   ├── audio_postprocess.py    # Pipeline post-prod modular
+│   ├── audio_processor.py      # Traitement in-memory (numpy)
 │   ├── audio_crossfade.py      # Crossfade entre segments
-│   ├── preview_generator.py    # Preview rapide 30s
-│   └── corrections_ui.py       # Interface Gradio corrections
+│   ├── acx_compliance.py       # Conformite ACX/Audible (v2.4)
+│   │
+│   │   # --- EXPORT & EMPAQUETAGE ---
+│   ├── audiobook_builder.py    # M4B avec chapitres + ID3
+│   ├── audiobook_packager.py   # Alternative empaquetage
+│   ├── book_exporter.py        # PDF, EPUB, HTML, TXT
+│   │
+│   │   # --- MODULES v3.0 ---
+│   ├── input_converter.py      # PDF/EPUB -> Markdown
+│   ├── audio_extractor.py      # Video -> WAV (ffmpeg)
+│   ├── podcast_server.py       # Serveur RSS local + QR code
+│   │
+│   │   # --- UTILITAIRES ---
+│   ├── preview_generator.py    # Apercu 30 secondes
+│   ├── corrections_loader.py   # Charge glossaires JSON
+│   ├── corrections_ui.py       # Interface Gradio corrections
+│   └── llm_emotion_detector.py # Detection emotion par LLM (Ollama/OpenAI)
+│
+├── examples/               # Exemples d'utilisation
+│   ├── generate_audiobook.py
+│   ├── example_multivoix.py
+│   └── config_multivoix_example.json
+│
+├── tests/                  # Tests unitaires (pytest)
+│   ├── conftest.py         # Fixtures pytest
+│   └── test_*.py           # 21 fichiers de tests
 │
 ├── docs/
-│   └── FINE_TUNING_OPTIONS.md  # Guide de fine-tuning
-├── config_multivoix_example.json  # Config exemple
-├── books/                  # Livres sources
+│   └── FINE_TUNING_OPTIONS.md
+├── voice_samples/          # Samples pour clonage
 └── output/                 # Audiobooks generes
 ```
 
@@ -1003,10 +1052,10 @@ Le modele Kokoro-82M est sous licence Apache 2.0.
 
 ## FAQ
 
-### Quelle est la difference entre audioreader.py et audioreader_hq.py ?
+### Quelle est la difference entre le mode standard et le mode HQ ?
 
-- `audioreader.py` : Mode standard, une seule voix, traitement basique
-- `audioreader_hq.py` : Pipeline haute qualite avec multi-voix automatique, analyse emotionnelle, et post-processing broadcast
+- **Mode standard** : Une seule voix, traitement rapide, ideal pour les essais.
+- **Mode HQ (`--hq`)** : Pipeline haute qualite avec multi-voix automatique, analyse emotionnelle, et post-processing broadcast.
 
 ### Comment configurer les voix par personnage ?
 
@@ -1021,7 +1070,7 @@ Creez un fichier JSON avec le mapping :
 }
 ```
 
-Puis : `python audioreader_hq.py livre.md --config config.json`
+Puis : `python audio_reader.py livre.md --hq --config config.json`
 
 ### Puis-je publier sur Audible ?
 
@@ -1084,4 +1133,4 @@ Documentation complete : **[INTEGRATION.md](INTEGRATION.md)**
 
 ---
 
-*AudioReader v2.4 - Convertissez vos livres en audiobooks de qualite professionnelle*
+*AudioReader v3.0 - Plateforme complete pour convertir vos livres en audiobooks de qualite professionnelle*
