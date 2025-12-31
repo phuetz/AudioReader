@@ -24,6 +24,7 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - [Architecture](#-architecture)
 - [Qualite Audio](#-qualite-audio)
 - [Distribution](#-distribution)
+- [Integration IA (Claude / ChatGPT)](#integration-ia-claude--chatgpt)
 - [References Scientifiques](#-references-scientifiques)
 - [Sources et Credits](#-sources-et-credits)
 
@@ -574,22 +575,40 @@ python audio_reader.py mon_livre.md --speed 1.2
 
 ### Clonage de voix (XTTS)
 
-Pour utiliser le clonage de voix avec le moteur XTTS (nécessite l'installation de `TTS`):
+Pour utiliser le clonage de voix avec le moteur XTTS-v2.
+
+> **Important :** La librairie TTS (Coqui) requiert Python 3.10 ou 3.11 (pas 3.12+).
+> Si votre environnement principal utilise Python 3.12+, creez un venv dedie :
 
 ```bash
-# Installer les dépendances
-pip install TTS torch torchaudio
+# Creer un environnement dedie Python 3.10
+python3.10 -m venv venv_xtts
+source venv_xtts/bin/activate
 
-# Cloner une voix à partir d'un fichier audio (min 6s)
+# Installer PyTorch (CPU)
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Installer TTS (inclut XTTS-v2)
+pip install TTS
+
+# Downgrade transformers si erreur "BeamSearchScorer"
+pip install "transformers>=4.33.0,<4.50.0"
+```
+
+**Utilisation :**
+
+```bash
+# Activer l'environnement XTTS
+source venv_xtts/bin/activate
+
+# Cloner une voix a partir d'un fichier audio (min 6s)
 python audio_reader.py mon_livre.md --engine xtts --clone ma_voix.wav
 
 # Multi-clonage (HQ mode)
-# Vous pouvez spécifier un mapping de personnages dans un fichier JSON
-# "Marie": "voix_marie.wav", "Pierre": "voix_pierre.wav"
-python audio_reader.py mon_livre.md --hq --multivoice --config mon_mapping.json
+python audio_reader.py mon_livre.md --hq --multivoice --clone narrateur.wav
 ```
 
-**Note sur XTTS multi-locuteurs :** XTTS-v2 permet d'utiliser plusieurs voix clonées dans le même livre. Le pipeline HQ d'AudioReader gère automatiquement l'attribution des voix aux différents personnages si vous fournissez un dictionnaire de mapping.
+**Note sur XTTS multi-locuteurs :** XTTS-v2 permet d'utiliser plusieurs voix clonees dans le meme livre. Le pipeline HQ gere automatiquement l'attribution des voix aux differents personnages.
 
 ### Synthese Haute Qualite (v2.4)
 
@@ -1036,6 +1055,32 @@ Oui, avec le pipeline etendu (`hq_pipeline_extended.py`), le cache est actif par
 1. **Activez le cache** : Les segments deja generes sont reutilises
 2. **Parallelisation** : Configurez `num_workers=4` (ou plus selon vos CPUs)
 3. **GPU** : Utilisez XTTS-v2 avec GPU pour le clonage de voix
+
+---
+
+## Integration IA (Claude / ChatGPT)
+
+AudioReader peut etre pilote par des assistants IA via deux interfaces :
+
+| Interface | Protocole | Usage |
+|-----------|-----------|-------|
+| **MCP Server** | Model Context Protocol | Claude Desktop, Claude.ai |
+| **REST API** | HTTP/OpenAPI | ChatGPT Actions, GPTs, clients HTTP |
+
+### Demarrage rapide
+
+```bash
+# API REST (ChatGPT, clients HTTP)
+pip install fastapi uvicorn python-multipart
+python api_server.py
+# -> http://localhost:8000
+
+# MCP Server (Claude Desktop)
+pip install mcp
+# Configurer dans claude_desktop_config.json (voir INTEGRATION.md)
+```
+
+Documentation complete : **[INTEGRATION.md](INTEGRATION.md)**
 
 ---
 

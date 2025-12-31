@@ -359,9 +359,15 @@ engine.register_voice("narrator", "samples/narrator_voice.wav")
 engine.synthesize_chapter(text, "output.wav", voice_id="narrator")
 ```
 
-Requirements:
+Requirements (Python 3.10 or 3.11 only - TTS doesn't support 3.12+):
 ```bash
-pip install TTS torch torchaudio
+# Create dedicated venv if using Python 3.12+
+python3.10 -m venv venv_xtts && source venv_xtts/bin/activate
+
+# Install dependencies
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install TTS
+pip install "transformers>=4.33.0,<4.50.0"  # Fix BeamSearchScorer error
 ```
 
 See `docs/FINE_TUNING_OPTIONS.md` for fine-tuning guide.
