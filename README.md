@@ -12,22 +12,22 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 
 ## Table des matieres
 
-- [Fonctionnalites](#-fonctionnalites)
-- [Nouveautes v3.0 - Plateforme Complete](#-nouveautes-v30---plateforme-complete)
-- [Nouveautes v2.4 - Outils et Moteurs](#-nouveautes-v24---outils-et-moteurs)
-- [Nouveautes v2.3 - Style ElevenLabs](#-nouveautes-v23---style-elevenlabs)
-- [Nouveautes v2.2 - Export Multi-Format](#-nouveautes-v22---export-multi-format)
-- [Nouveautes v2.1 - Fonctionnalites Avancees](#-nouveautes-v21---fonctionnalites-avancees)
-- [Nouveautes v2.0 - Pipeline HQ](#-nouveautes-v20---pipeline-hq)
-- [Installation](#-installation)
-- [Utilisation](#-utilisation)
-- [Pipeline Haute Qualite](#-pipeline-haute-qualite)
-- [Architecture](#-architecture)
-- [Qualite Audio](#-qualite-audio)
-- [Distribution](#-distribution)
+- [Fonctionnalites](#fonctionnalites)
+- [Nouveautes v3.0 - Plateforme Complete](#nouveautes-v30---plateforme-complete)
+- [Nouveautes v2.4 - Outils et Moteurs](#nouveautes-v24---outils-et-moteurs)
+- [Nouveautes v2.3 - Style ElevenLabs](#nouveautes-v23---style-elevenlabs)
+- [Nouveautes v2.2 - Export Multi-Format](#nouveautes-v22---export-multi-format)
+- [Nouveautes v2.1 - Fonctionnalites Avancees](#nouveautes-v21---fonctionnalites-avancees)
+- [Nouveautes v2.0 - Pipeline HQ](#nouveautes-v20---pipeline-hq)
+- [Installation](#installation)
+- [Utilisation](#utilisation)
+- [Pipeline Haute Qualite](#pipeline-haute-qualite)
+- [Architecture](#architecture)
+- [Qualite Audio](#qualite-audio)
+- [Distribution](#distribution)
 - [Integration IA (Claude / ChatGPT)](#integration-ia-claude--chatgpt)
-- [References Scientifiques](#-references-scientifiques)
-- [Sources et Credits](#-sources-et-credits)
+- [References Scientifiques](#references-scientifiques)
+- [Sources et Credits](#sources-et-credits)
 
 ---
 

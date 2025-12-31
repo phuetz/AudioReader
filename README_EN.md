@@ -12,21 +12,21 @@ Powered by [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - an open-sou
 
 ## Table of Contents
 
-- [Features](#-features)
-- [What's New in v3.0 - Complete Platform](#-whats-new-in-v30---complete-platform)
-- [What's New in v2.4 - Tools and Engines](#-whats-new-in-v24---tools-and-engines)
-- [What's New in v2.3 - ElevenLabs Style](#-whats-new-in-v23---elevenlabs-style)
-- [What's New in v2.2 - Multi-Format Export](#-whats-new-in-v22---multi-format-export)
-- [What's New in v2.1 - Advanced Features](#-whats-new-in-v21---advanced-features)
-- [What's New in v2.0 - HQ Pipeline](#-whats-new-in-v20---hq-pipeline)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [High Quality Pipeline](#-high-quality-pipeline)
-- [Architecture](#-architecture)
-- [Audio Quality](#-audio-quality)
-- [Distribution](#-distribution)
-- [Scientific References](#-scientific-references)
-- [Sources and Credits](#-sources-and-credits)
+- [Features](#features)
+- [What's New in v3.0 - Complete Platform](#whats-new-in-v30---complete-platform)
+- [What's New in v2.4 - Tools and Engines](#whats-new-in-v24---tools-and-engines)
+- [What's New in v2.3 - ElevenLabs Style](#whats-new-in-v23---elevenlabs-style)
+- [What's New in v2.2 - Multi-Format Export](#whats-new-in-v22---multi-format-export)
+- [What's New in v2.1 - Advanced Features](#whats-new-in-v21---advanced-features)
+- [What's New in v2.0 - HQ Pipeline](#whats-new-in-v20---hq-pipeline)
+- [Installation](#installation)
+- [Usage](#usage)
+- [High Quality Pipeline](#high-quality-pipeline)
+- [Architecture](#architecture)
+- [Audio Quality](#audio-quality)
+- [Distribution](#distribution)
+- [Scientific References](#scientific-references)
+- [Sources and Credits](#sources-and-credits)
 
 ---
 
