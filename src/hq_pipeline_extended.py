@@ -10,6 +10,8 @@ Integration complete de:
 - Controle d'emotion et phonemes
 - Generation de conversations multi-speakers
 - v2.3: Respirations avancees, contours d'intonation, timing humanise
+- v2.4: Styles de narration, controle mot-par-mot, attribution dialogue,
+        conformite ACX/Audible, detection emotion LLM
 """
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -82,6 +84,39 @@ from .timing_humanizer import (
     ClauseType
 )
 
+# v2.4 modules
+from .narration_styles import (
+    NarrationStyle,
+    NarrationStyleManager,
+    StyleProsodyProfile,
+    STYLE_PROFILES
+)
+from .word_level_control import (
+    WordLevelController,
+    WordProsody,
+    ProcessedText as WordProcessedText,
+    process_text_with_word_control
+)
+from .dialogue_attribution import (
+    DialogueAttributor,
+    DialogueAttribution,
+    AttributedDialogue,
+    AttributionMethod
+)
+from .acx_compliance import (
+    ACXAnalyzer,
+    ACXCorrector,
+    ACXStandards,
+    ComplianceReport,
+    ComplianceLevel
+)
+from .llm_emotion_detector import (
+    LLMEmotionDetector,
+    LLMConfig,
+    EmotionResult,
+    EmotionCategory
+)
+
 
 @dataclass
 class ExtendedPipelineConfig(HQPipelineConfig):
@@ -133,6 +168,29 @@ class ExtendedPipelineConfig(HQPipelineConfig):
     enable_emphasis_pauses: bool = True
     emphasis_pause_duration: float = 0.05  # 50ms
 
+    # v2.4: Narration styles
+    enable_narration_styles: bool = True
+    default_narration_style: str = "storytelling"  # formal, conversational, dramatic, storytelling
+
+    # v2.4: Word-level control
+    enable_word_level_control: bool = True
+    auto_emphasis: bool = True
+    emphasis_strength: float = 1.0
+
+    # v2.4: Dialogue attribution
+    enable_dialogue_attribution: bool = True
+    known_characters: Dict[str, str] = field(default_factory=dict)  # {name: gender}
+
+    # v2.4: ACX/Audible compliance
+    enable_acx_compliance: bool = True
+    acx_target_lufs: float = -20.0
+    acx_peak_limit: float = -3.0
+
+    # v2.4: LLM emotion detection
+    enable_llm_emotion: bool = False  # Requires Ollama or OpenAI
+    llm_provider: str = "ollama"
+    llm_model: str = "llama3.2"
+
     def save(self, path: Path):
         """Sauvegarde la configuration etendue."""
         data = {
@@ -167,6 +225,20 @@ class ExtendedPipelineConfig(HQPipelineConfig):
             "pause_variation_sigma": self.pause_variation_sigma,
             "enable_emphasis_pauses": self.enable_emphasis_pauses,
             "emphasis_pause_duration": self.emphasis_pause_duration,
+            # v2.4
+            "enable_narration_styles": self.enable_narration_styles,
+            "default_narration_style": self.default_narration_style,
+            "enable_word_level_control": self.enable_word_level_control,
+            "auto_emphasis": self.auto_emphasis,
+            "emphasis_strength": self.emphasis_strength,
+            "enable_dialogue_attribution": self.enable_dialogue_attribution,
+            "known_characters": self.known_characters,
+            "enable_acx_compliance": self.enable_acx_compliance,
+            "acx_target_lufs": self.acx_target_lufs,
+            "acx_peak_limit": self.acx_peak_limit,
+            "enable_llm_emotion": self.enable_llm_emotion,
+            "llm_provider": self.llm_provider,
+            "llm_model": self.llm_model,
         }
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -200,6 +272,24 @@ class ExtendedHQSegment(HQSegment):
     humanized_pause_after: float = 0.0
     clause_type: Optional[ClauseType] = None
     has_emphasis_pause: bool = False
+
+    # v2.4: Narration style
+    narration_style: Optional[NarrationStyle] = None
+    style_prosody: Dict[str, float] = field(default_factory=dict)
+
+    # v2.4: Word-level control
+    word_prosodies: List[WordProsody] = field(default_factory=list)
+    has_word_emphasis: bool = False
+
+    # v2.4: Dialogue attribution
+    attributed_speaker: Optional[str] = None
+    attribution_method: Optional[AttributionMethod] = None
+    attribution_confidence: float = 0.0
+
+    # v2.4: LLM emotion
+    llm_emotion: Optional[EmotionCategory] = None
+    llm_emotion_confidence: float = 0.0
+    detected_subtext: Optional[str] = None
 
 
 class ExtendedHQPipeline:
@@ -333,6 +423,57 @@ class ExtendedHQPipeline:
         else:
             self.timing_humanizer = None
             self.pause_calculator = None
+
+        # v2.4: Narration styles
+        if self.config.enable_narration_styles:
+            try:
+                default_style = NarrationStyle(self.config.default_narration_style)
+            except ValueError:
+                default_style = NarrationStyle.STORYTELLING
+            self.narration_style_manager = NarrationStyleManager(default_style)
+        else:
+            self.narration_style_manager = None
+
+        # v2.4: Word-level control
+        if self.config.enable_word_level_control:
+            self.word_controller = WordLevelController(
+                auto_emphasis=self.config.auto_emphasis,
+                emphasis_strength=self.config.emphasis_strength,
+                lang=self.config.lang
+            )
+        else:
+            self.word_controller = None
+
+        # v2.4: Dialogue attribution
+        if self.config.enable_dialogue_attribution:
+            self.dialogue_attributor = DialogueAttributor(lang=self.config.lang)
+            # Register known characters
+            for name, gender in self.config.known_characters.items():
+                self.dialogue_attributor.register_character(name, gender)
+        else:
+            self.dialogue_attributor = None
+
+        # v2.4: ACX compliance
+        if self.config.enable_acx_compliance:
+            standards = ACXStandards(
+                lufs_target=self.config.acx_target_lufs,
+                peak_max_db=self.config.acx_peak_limit
+            )
+            self.acx_analyzer = ACXAnalyzer(standards)
+            self.acx_corrector = ACXCorrector(standards)
+        else:
+            self.acx_analyzer = None
+            self.acx_corrector = None
+
+        # v2.4: LLM emotion detection
+        if self.config.enable_llm_emotion:
+            llm_config = LLMConfig(
+                provider=self.config.llm_provider,
+                model=self.config.llm_model
+            )
+            self.llm_emotion_detector = LLMEmotionDetector(llm_config)
+        else:
+            self.llm_emotion_detector = None
 
     def _process_audio_tags(self, text: str) -> ProcessedSegment:
         """Traite les audio tags dans le texte."""
@@ -753,6 +894,13 @@ def create_extended_pipeline(
         kwargs.setdefault("enable_intonation_contours", True)
         kwargs.setdefault("enable_timing_humanization", True)
         kwargs.setdefault("enable_emphasis_pauses", True)
+        # v2.4 features
+        kwargs.setdefault("enable_narration_styles", True)
+        kwargs.setdefault("enable_word_level_control", True)
+        kwargs.setdefault("enable_dialogue_attribution", True)
+        kwargs.setdefault("enable_acx_compliance", True)
+        # Note: LLM emotion requires explicit opt-in due to external dependency
+        # kwargs.setdefault("enable_llm_emotion", True)
 
     config = ExtendedPipelineConfig(
         lang=lang,

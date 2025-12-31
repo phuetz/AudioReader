@@ -23,6 +23,25 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from markdown_parser import parse_book, Chapter
 from tts_engine import create_tts_engine, EngineType
 
+# Optional HQ imports
+try:
+    from src.hq_pipeline_extended import (
+        ExtendedPipelineConfig,
+        ExtendedHQPipeline,
+        create_extended_pipeline
+    )
+    HAS_HQ = True
+except ImportError:
+    try:
+        from hq_pipeline_extended import (
+            ExtendedPipelineConfig,
+            ExtendedHQPipeline,
+            create_extended_pipeline
+        )
+        HAS_HQ = True
+    except ImportError:
+        HAS_HQ = False
+
 
 # Moteurs et voix disponibles
 ENGINES = {
@@ -78,6 +97,80 @@ def print_progress(current: int, total: int, chapter_title: str):
     print(f"\r[{bar}] {percent:5.1f}% - {chapter_title[:40]}", end="", flush=True)
 
 
+import soundfile as sf
+import numpy as np
+
+def pipeline_synthesize_chapter(pipeline, text, output_path):
+    """Synthétise un chapitre complet avec le pipeline HQ."""
+    try:
+        from src.hq_pipeline_extended import AudiobookGenerator
+        import tempfile
+        import os
+        
+        # 1. Initialiser le générateur
+        generator = AudiobookGenerator(config=pipeline.config)
+        generator.pipeline = pipeline
+        
+        # 2. Processus (Analyse -> Segments)
+        segments = pipeline.process_chapter(text)
+        
+        # 3. Récupérer le moteur approprié
+        # Si le mode XTTS est activé dans la config
+        is_xtts = pipeline.config.tts_engine == "xtts" or pipeline.config.enable_voice_cloning
+        
+        from src.tts_engine import create_tts_engine
+        engine = create_tts_engine(
+            language=pipeline.config.lang,
+            engine_type="xtts" if is_xtts else "kokoro",
+            voice=pipeline.config.narrator_voice
+        )
+        
+        def synth_fn(t, v, s):
+            # Utilise un fichier temporaire pour récupérer l'audio
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+            try:
+                # Le moteur unifié gère le routage vers Kokoro ou XTTS
+                # Si v est un chemin vers un WAV (clonage), XTTS le gérera via speaker_wav
+                success = engine.synthesize(t, tmp_path, voice=v, speed=s, speaker_wav=v if (is_xtts and os.path.exists(str(v))) else None)
+                
+                if success and os.path.exists(tmp_path):
+                    audio, _ = sf.read(tmp_path)
+                    return audio
+                return np.array([], dtype=np.float32)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            
+        # Synthèse des segments
+        audios = pipeline.synthesize_segments(segments, synth_fn)
+        
+        # 4. Concaténation
+        full_audio = generator._concatenate_with_pauses(segments, audios)
+        
+        # 5. Sauvegarde
+        sf.write(str(output_path), full_audio, 24000)
+        
+        # 6. Mastering final
+        if pipeline.config.enable_audio_enhancement:
+            from src.audio_enhancer import AudioEnhancer
+            enhancer = AudioEnhancer()
+            if enhancer.is_available():
+                mastered_path = output_path.with_name(f"{output_path.stem}_mastered.wav")
+                if hasattr(pipeline.config, 'acx_target_lufs'):
+                    enhancer.config.target_lufs = pipeline.config.acx_target_lufs
+                
+                success = enhancer.enhance_file(output_path, mastered_path)
+                if success and mastered_path.exists():
+                    os.replace(mastered_path, output_path)
+
+        return True
+    except Exception as e:
+        print(f"Erreur lors de la synthèse HQ : {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def convert_book(
     input_file: Path,
     output_dir: Path,
@@ -85,7 +178,13 @@ def convert_book(
     engine_type: str,
     voice: str,
     speed: float,
-    header_level: int
+    header_level: int,
+    clone_path: Path = None,
+    hq: bool = False,
+    multivoice: bool = False,
+    style: str = "storytelling",
+    master: bool = False,
+    use_cache: bool = True
 ):
     """Convertit un livre Markdown en fichiers audio."""
 
@@ -110,24 +209,67 @@ def convert_book(
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nDossier de sortie: {output_dir}")
 
-    # Initialiser le moteur TTS unifié
+    # Si clonage demandé, on force XTTS si auto
+    if clone_path:
+        if engine_type == "auto":
+            engine_type = "xtts"
+            print("Note: Moteur basculé sur XTTS pour le support du clonage.")
+        elif engine_type != "xtts":
+            print("Attention: L'argument --clone est ignoré si le moteur n'est pas XTTS.")
+
+    # Initialiser le moteur ou pipeline
     print(f"\nConfiguration TTS:")
     print(f"  Langue: {language}")
-    print(f"  Moteur: {engine_type}")
-    if voice:
-        print(f"  Voix: {voice}")
-    print(f"  Vitesse: {speed}x")
+    
+    if hq and HAS_HQ:
+        print(f"  Moteur: Pipeline HQ étendu (v2.4)")
+        print(f"  Style: {style}")
+        print(f"  Multi-voix: {'Oui' if multivoice else 'Non'}")
+        print(f"  Mastering: {'Oui' if master else 'Non'}")
+        if clone_path:
+             print(f"  Clonage: {clone_path} (via HQ Voice Cloning)")
+        
+        config = ExtendedPipelineConfig(
+            lang=language,
+            narrator_voice=voice,
+            enable_dialogue_attribution=multivoice,
+            auto_assign_voices=multivoice,
+            default_narration_style=style,
+            enable_acx_compliance=master,
+            enable_audio_enhancement=master,
+            enable_cache=use_cache,
+            # Activer le clonage si un fichier est fourni
+            enable_voice_cloning=bool(clone_path)
+        )
+        pipeline = ExtendedHQPipeline(config)
+        
+        # Enregistrer la voix clonée dans le pipeline HQ
+        if clone_path and pipeline.cloning_manager:
+            pipeline.cloning_manager.register_cloned_voice("narrator", clone_path)
+            # Assigner cette voix au narrateur
+            pipeline.config.narrator_voice = "narrator"
 
-    engine = create_tts_engine(
-        language=language,
-        engine_type=engine_type,
-        voice=voice,
-        speed=speed
-    )
+        engine = None
+    else:
+        if hq and not HAS_HQ:
+            print("⚠️ Pipeline HQ non disponible, utilisation du moteur standard.")
+        
+        print(f"  Moteur: {engine_type}")
+        if voice:
+            print(f"  Voix: {voice}")
+        if clone_path and engine_type == "xtts":
+            print(f"  Clonage: {clone_path}")
+        print(f"  Vitesse: {speed}x")
 
-    print(f"\nMoteur sélectionné: {engine.get_info().get('engine_type', 'unknown')}")
+        engine = create_tts_engine(
+            language=language,
+            engine_type=engine_type,
+            voice=voice,
+            speed=speed
+        )
+        pipeline = None
 
-    if not engine.is_available():
+    if engine and not engine.is_available():
         print("Erreur: Moteur TTS non disponible")
         return False
 
@@ -144,7 +286,16 @@ def convert_book(
 
         # Convertir en audio
         text = chapter.get_full_text()
-        success = engine.synthesize(text, output_path)
+        
+        if pipeline:
+            success = pipeline_synthesize_chapter(pipeline, text, output_path)
+        else:
+            # Passer le fichier de clonage si nécessaire
+            kw = {}
+            if clone_path and engine_type == "xtts":
+                kw['speaker_wav'] = str(clone_path)
+                
+            success = engine.synthesize(text, output_path, **kw)
 
         if success:
             success_count += 1
@@ -198,8 +349,14 @@ Moteurs TTS (tous gratuits):
     parser.add_argument(
         "-e", "--engine",
         default="auto",
-        choices=["auto", "mms", "kokoro", "edge"],
-        help="Moteur TTS (auto=sélection selon langue)"
+        choices=["auto", "mms", "kokoro", "xtts", "edge"],
+        help="Moteur TTS (auto, mms, kokoro, xtts, edge)"
+    )
+
+    parser.add_argument(
+        "--clone",
+        type=Path,
+        help="Fichier audio de référence pour le clonage de voix (avec moteur XTTS)"
     )
 
     parser.add_argument(
@@ -221,6 +378,42 @@ Moteurs TTS (tous gratuits):
         default=1,
         choices=[1, 2, 3],
         help="Niveau des headers pour les chapitres (1=#, 2=##, 3=###)"
+    )
+
+    # --- HQ Options ---
+    hq_group = parser.add_argument_group("HQ Pipeline Options (v2.4)")
+    
+    hq_group.add_argument(
+        "--hq",
+        action="store_true",
+        help="Utilise le pipeline Haute Qualité (plus lent, mais bien meilleur)"
+    )
+
+    hq_group.add_argument(
+        "--multivoice",
+        action="store_true",
+        help="Active la détection et l'attribution automatique des voix pour les dialogues"
+    )
+
+    hq_group.add_argument(
+        "--style",
+        choices=["storytelling", "formal", "conversational", "dramatic"],
+        default="storytelling",
+        help="Style de narration (pour le mode HQ)"
+    )
+
+    hq_group.add_argument(
+        "--master",
+        action="store_true",
+        help="Active le mastering audio final (conforme ACX/Audible)"
+    )
+
+    hq_group.add_argument(
+        "--no-cache",
+        action="store_false",
+        dest="use_cache",
+        default=True,
+        help="Désactive le cache de synthèse"
     )
 
     parser.add_argument(
@@ -259,7 +452,13 @@ Moteurs TTS (tous gratuits):
         engine_type=args.engine,
         voice=args.voice,
         speed=args.speed,
-        header_level=args.header_level
+        header_level=args.header_level,
+        clone_path=args.clone,
+        hq=args.hq,
+        multivoice=args.multivoice,
+        style=args.style,
+        master=args.master,
+        use_cache=args.use_cache
     )
 
     return 0 if success else 1

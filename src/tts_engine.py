@@ -27,6 +27,7 @@ class EngineType(Enum):
     """Types de moteurs TTS disponibles."""
     KOKORO = "kokoro"
     MMS = "mms"
+    XTTS = "xtts"
     EDGE = "edge"
     PYTTSX3 = "pyttsx3"
     AUTO = "auto"
@@ -93,7 +94,7 @@ class UnifiedTTSEngine:
         Initialise le moteur TTS.
 
         Args:
-            engine_type: "auto", "kokoro", "mms", "edge"
+            engine_type: "auto", "kokoro", "mms", "xtts", "edge"
             language: Code langue (fr, en, de, etc.)
             voice: Voix (pour Kokoro uniquement)
             speed: Vitesse de lecture
@@ -119,9 +120,32 @@ class UnifiedTTSEngine:
 
     def _create_engine(self):
         """Crée l'instance du moteur."""
+        # Helper pour import robuste (relatif ou absolu)
+        def robust_import(module_name, class_name):
+            try:
+                module = __import__(module_name, fromlist=[class_name])
+                return getattr(module, class_name)
+            except ImportError:
+                # Essayer import relatif (si package)
+                try:
+                    module = __import__(f".{module_name}", fromlist=[class_name], package="src")
+                    return getattr(module, class_name)
+                except ImportError:
+                    # Essayer import direct (si src/ est dans sys.path)
+                    try:
+                        # Cas spécifique où src est dans le path
+                        import sys
+                        if "src" not in sys.modules:
+                            # Tenter un import sans prefixe
+                            module = __import__(module_name, fromlist=[class_name])
+                            return getattr(module, class_name)
+                    except:
+                        pass
+                    raise
+
         if self._engine_type == EngineType.KOKORO:
             try:
-                from .tts_kokoro_engine import KokoroEngine
+                KokoroEngine = robust_import("tts_kokoro_engine", "KokoroEngine")
                 self._engine = KokoroEngine(
                     voice=self.voice,
                     speed=self.speed,
@@ -134,7 +158,7 @@ class UnifiedTTSEngine:
 
         elif self._engine_type == EngineType.MMS:
             try:
-                from .tts_mms_engine import MMSTTSEngine
+                MMSTTSEngine = robust_import("tts_mms_engine", "MMSTTSEngine")
                 lang_map = {"fr": "fra", "en": "eng", "de": "deu",
                            "es": "spa", "it": "ita", "pt": "por"}
                 mms_lang = lang_map.get(self.language, self.language)
@@ -146,6 +170,21 @@ class UnifiedTTSEngine:
             except Exception as e:
                 print(f"MMS non disponible: {e}, fallback Edge")
                 self._engine_type = EngineType.EDGE
+                self._create_engine()
+
+        elif self._engine_type == EngineType.XTTS:
+            try:
+                XTTSEngine = robust_import("tts_xtts_engine", "XTTSEngine")
+                XTTSConfig = robust_import("tts_xtts_engine", "XTTSConfig")
+                
+                config = XTTSConfig(
+                    default_language=self.language,
+                    speed=self.speed
+                )
+                self._engine = XTTSEngine(config)
+            except Exception as e:
+                print(f"XTTS non disponible: {e}, fallback MMS")
+                self._engine_type = EngineType.MMS
                 self._create_engine()
 
         elif self._engine_type == EngineType.EDGE:
@@ -165,7 +204,9 @@ class UnifiedTTSEngine:
         text: str,
         output_path: Path,
         voice: Optional[str] = None,
-        speed: Optional[float] = None
+        speed: Optional[float] = None,
+        speaker_wav: Optional[str] = None,
+        **kwargs
     ) -> bool:
         """
         Synthétise du texte en audio.
@@ -175,6 +216,7 @@ class UnifiedTTSEngine:
             output_path: Chemin du fichier de sortie
             voice: Voix (optionnel)
             speed: Vitesse (optionnel)
+            speaker_wav: Chemin vers un fichier audio pour clonage (XTTS)
 
         Returns:
             True si succès
@@ -183,11 +225,28 @@ class UnifiedTTSEngine:
             print("Aucun moteur TTS disponible")
             return False
 
+        # Si le moteur supporte le clonage (XTTS), passer speaker_wav
+        if self._engine_type == EngineType.XTTS:
+             if speaker_wav:
+                 kwargs['speaker_wav'] = speaker_wav
+             # XTTS utilise voice_id au lieu de voice
+             if voice:
+                 kwargs['voice_id'] = voice
+             
+             # Appeler sans l'argument 'voice' qui n'existe pas dans XTTS
+             return self._engine.synthesize(
+                text=text,
+                output_path=Path(output_path),
+                speed=speed,
+                **kwargs
+            )
+
         return self._engine.synthesize(
             text=text,
             output_path=Path(output_path),
             voice=voice,
-            speed=speed
+            speed=speed,
+            **kwargs
         )
 
     def get_info(self) -> dict:

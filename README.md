@@ -557,21 +557,66 @@ python audioreader.py --list-voices
 
 ## Utilisation
 
-### Mode Standard (audioreader.py)
+### Synthese standard (Rapide)
+
+La commande par defaut utilise `MMS-TTS` pour le francais ou `Kokoro` pour l'anglais avec une configuration simplifiee.
 
 ```bash
-# Convertir un livre Markdown
-python audioreader.py mon_livre.md
+# Convertir un livre avec les reglages par defaut
+python audio_reader.py mon_livre.md
 
-# Avec une voix anglaise
-python audioreader.py book.md --voice af_heart
+# Specifier la langue et la voix
+python audio_reader.py mon_livre.md --language en --voice af_heart
 
-# Avec mastering audio professionnel
-python audioreader.py livre.md --mastering
-
-# Export en M4B avec chapitres
-python audioreader.py livre.md --format m4b --title "Mon Livre" --author "Auteur"
+# Changer la vitesse
+python audio_reader.py mon_livre.md --speed 1.2
 ```
+
+### Clonage de voix (XTTS)
+
+Pour utiliser le clonage de voix avec le moteur XTTS (nécessite l'installation de `TTS`):
+
+```bash
+# Installer les dépendances
+pip install TTS torch torchaudio
+
+# Cloner une voix à partir d'un fichier audio (min 6s)
+python audio_reader.py mon_livre.md --engine xtts --clone ma_voix.wav
+
+# Multi-clonage (HQ mode)
+# Vous pouvez spécifier un mapping de personnages dans un fichier JSON
+# "Marie": "voix_marie.wav", "Pierre": "voix_pierre.wav"
+python audio_reader.py mon_livre.md --hq --multivoice --config mon_mapping.json
+```
+
+**Note sur XTTS multi-locuteurs :** XTTS-v2 permet d'utiliser plusieurs voix clonées dans le même livre. Le pipeline HQ d'AudioReader gère automatiquement l'attribution des voix aux différents personnages si vous fournissez un dictionnaire de mapping.
+
+### Synthese Haute Qualite (v2.4)
+
+Utilisez le flag `--hq` pour activer le pipeline etendu avec toutes les fonctionnalites avancees (multi-voix, emotions, styles).
+
+```bash
+# Conversion HQ avec mastering broadcast
+python audio_reader.py mon_livre.md --hq --master
+
+# HQ avec detection automatique des personnages (multi-voix)
+python audio_reader.py mon_livre.md --hq --multivoice
+
+# HQ avec style de narration specifique
+python audio_reader.py mon_livre.md --hq --style dramatic
+
+# La totale: HQ, Multi-voix, Style et Mastering
+python audio_reader.py mon_livre.md --hq --multivoice --style storytelling --master
+```
+
+**Options HQ disponibles :**
+- `--hq` : Active le pipeline etendu (Kokoro v2.4).
+- `--multivoice` : Analyse le texte pour attribuer des voix differentes aux personnages (Alice, Bob, etc.).
+- `--style [storytelling|formal|conversational|dramatic]` : Definit le ton general.
+- `--master` : Applique la chaine de mastering professionnelle (ACX/Audible compliance).
+- `--no-cache` : Desactive le cache de synthese pour regenerer tous les segments.
+
+---
 
 ### Mode Haute Qualite (audioreader_hq.py) - NOUVEAU
 

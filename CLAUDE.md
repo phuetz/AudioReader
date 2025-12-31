@@ -15,13 +15,19 @@ AudioReader converts Markdown books into high-quality audiobooks using Kokoro-82
 source venv/bin/activate
 
 # Standard conversion
-python audioreader.py livre.md
+python audio_reader.py livre.md
 
 # High-quality pipeline (multi-voice, emotions, post-processing)
-python audioreader_hq.py livre.md -o output/
+python audio_reader.py livre.md --hq --master
+
+# Voice Cloning with XTTS-v2
+python audio_reader.py livre.md --engine xtts --clone ma_voix.wav
+
+# Advanced HQ Pipeline with Voice Cloning
+python audio_reader.py livre.md --hq --clone ma_voix.wav --multivoice --master
 
 # Web interface (Gradio)
-python audioreader.py --gui
+python audio_reader.py --gui
 
 # List available voices
 python audioreader.py --list-voices
@@ -70,10 +76,11 @@ python generate_tome1.py
 
 ## Architecture
 
-### Two Main Pipelines
+### Main Entry Point
 
-1. **Standard Pipeline** (`audioreader.py`): Single voice, basic processing
-2. **HQ Pipeline** (`audioreader_hq.py`): Multi-voice, emotions, broadcast post-processing
+- **audio_reader.py**: The unified CLI tool. It supports two modes:
+    1. **Standard Mode**: Single voice, fast processing.
+    2. **HQ Mode** (`--hq`): Multi-voice, emotions, broadcast post-processing.
 
 ### Core Modules in `src/`
 
@@ -111,6 +118,13 @@ python generate_tome1.py
 - `breath_samples.py` - Gestionnaire hybride samples/synthèse pour respirations
 - `intonation_contour.py` - Contours d'intonation phrase-level (déclaratif, question, exclamation)
 - `timing_humanizer.py` - Micro-variations de timing, pauses d'emphase
+
+**Intelligence Avancée (v2.4):**
+- `narration_styles.py` - Styles de narration (formel, conversationnel, dramatique, storytelling)
+- `word_level_control.py` - Contrôle prosodique mot-par-mot (emphase, pitch, vitesse)
+- `dialogue_attribution.py` - Attribution automatique des dialogues aux personnages
+- `acx_compliance.py` - Conformité ACX/Audible (normalisation, peaks, noise floor)
+- `llm_emotion_detector.py` - Détection d'émotion contextuelle par LLM (Ollama/OpenAI)
 
 **Pipelines:**
 - `hq_pipeline.py` - Unified HQ processing (v2.0)
@@ -351,6 +365,157 @@ pip install TTS torch torchaudio
 ```
 
 See `docs/FINE_TUNING_OPTIONS.md` for fine-tuning guide.
+
+## Narration Styles (v2.4)
+
+`NarrationStyleManager` provides different narration modes:
+
+| Style | Speed | Description |
+|-------|-------|-------------|
+| `formal` | 0.95x | Posé, professionnel, stable |
+| `conversational` | 1.05x | Naturel, décontracté |
+| `dramatic` | 0.92x | Intense, grandes variations |
+| `storytelling` | 1.0x | Captivant, dynamique (défaut) |
+| `documentary` | 1.0x | Informatif, neutre |
+| `intimate` | 0.9x | Proche, confidentiel |
+| `energetic` | 1.12x | Dynamique, enthousiaste |
+
+```python
+from src.narration_styles import NarrationStyleManager, NarrationStyle
+
+manager = NarrationStyleManager(NarrationStyle.STORYTELLING)
+prosody = manager.apply_style_to_prosody(base_speed=1.0)
+# Returns {"speed": 1.02, "pitch": 0.18, "volume": 1.01}
+
+# Auto-suggest style based on context
+style = manager.suggest_style_for_context(
+    narrative_type="action",
+    emotion="fear",
+    is_dialogue=False
+)  # Returns NarrationStyle.DRAMATIC
+```
+
+## Word-Level Control (v2.4)
+
+`WordLevelController` supports SSML-like markup for fine-grained prosody:
+
+**Supported tags:**
+- `<em>mot</em>` or `*mot*` - Emphasis
+- `<slow>texte</slow>` - Slower speech
+- `<fast>texte</fast>` - Faster speech
+- `<pitch high>texte</pitch>` - Higher pitch
+- `<pitch low>texte</pitch>` - Lower pitch
+- `<whisper>texte</whisper>` - Soft, whispered
+- `<loud>texte</loud>` - Louder speech
+- `[pause]` or `[pause:0.3]` - Insert pause
+
+```python
+from src.word_level_control import WordLevelController
+
+controller = WordLevelController(auto_emphasis=True)
+result = controller.process_text(
+    "Il était <em>absolument</em> certain que [pause] *soudain* tout changerait."
+)
+print(result.clean_text)  # "Il était absolument certain que soudain tout changerait."
+# result.word_prosodies contains emphasis info for "absolument" and "soudain"
+```
+
+**Auto-emphasis words** (French): jamais, toujours, absolument, soudain, mais, cependant...
+
+## Dialogue Attribution (v2.4)
+
+`DialogueAttributor` identifies WHO is speaking:
+
+```python
+from src.dialogue_attribution import DialogueAttributor
+
+attributor = DialogueAttributor(lang="fr")
+
+# Register known characters
+attributor.register_character("Victor", "M")
+attributor.register_character("Marie", "F")
+
+# Attribute dialogue
+text = '« Tu es là ? » demanda Victor.'
+attr = attributor.attribute_dialogue("Tu es là ?", text)
+print(attr.speaker)      # "Victor"
+print(attr.method.value) # "explicit"
+print(attr.confidence)   # 0.95
+```
+
+**Attribution methods:**
+- `explicit`: "dit Victor", "répondit Marie"
+- `pronoun`: "dit-il", "murmura-t-elle"
+- `alternation`: Conversation pattern tracking
+- `context`: Last mentioned character
+
+## ACX/Audible Compliance (v2.4)
+
+`ACXAnalyzer` and `ACXCorrector` ensure professional audiobook standards:
+
+**ACX Requirements:**
+- RMS: -23dB to -18dB
+- Peak: ≤ -3dB
+- True Peak: ≤ -1dB
+- Noise Floor: ≤ -60dB
+- Sample Rate: ≥ 44.1kHz
+- Format: Mono preferred
+
+```python
+from src.acx_compliance import analyze_and_report, make_acx_compliant
+
+# Analyze a file
+report = analyze_and_report("audiobook.wav")
+print(f"Loudness: {report.analysis.integrated_lufs} LUFS")
+print(f"Peak: {report.analysis.peak_db} dB")
+print(f"Compliant: {report.is_acx_compliant}")
+
+# Auto-fix compliance issues
+success, report = make_acx_compliant("input.wav", "output.wav")
+```
+
+**CLI usage:**
+```bash
+python -m src.acx_compliance audiobook.wav --fix acx_compliant.wav
+```
+
+## LLM Emotion Detection (v2.4)
+
+`LLMEmotionDetector` uses LLMs for contextual emotion analysis:
+
+**Supported providers:**
+- Ollama (local, free)
+- OpenAI (cloud, requires API key)
+
+```python
+from src.llm_emotion_detector import LLMEmotionDetector, LLMConfig
+
+config = LLMConfig(
+    provider="ollama",
+    model="llama3.2",
+    temperature=0.3
+)
+detector = LLMEmotionDetector(config)
+
+# Simple detection
+result = detector.detect_emotion("Il sourit amèrement, sachant la vérité.")
+print(result.primary_emotion.value)  # "irony" or "sadness"
+print(result.confidence)             # 0.85
+
+# Contextual detection
+result = detector.detect_emotion(
+    text="Elle sourit.",
+    context="Après des mois de deuil, elle avait trouvé la paix."
+)
+# Detects "relief" instead of simple "joy"
+
+# Character state tracking
+detector.detect_emotion("Il était furieux.", character="Victor")
+state = detector.get_character_state("Victor")
+print(state.mood_trend)  # "stable", "improving", or "declining"
+```
+
+**Fallback:** Uses keyword-based detection if LLM unavailable.
 
 ## Language
 

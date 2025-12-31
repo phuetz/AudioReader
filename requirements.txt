@@ -24,5 +24,13 @@ ebooklib>=0.18    # EPUB generation
 # Optional: XTTS-v2 (high-quality voice cloning)
 # pip install TTS torch torchaudio
 
+# API Server (for ChatGPT/HTTP integration)
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-multipart>=0.0.6
+
+# MCP Server (for Claude.ai integration)
+# pip install mcp
+
 # Development
 # pip install pytest black flake8

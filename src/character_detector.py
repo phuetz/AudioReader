@@ -247,6 +247,14 @@ class CharacterDetector:
 
         return None
 
+    # Mots à ignorer après le nom du personnage
+    STOP_WORDS_FR = {
+        "avec", "en", "d'une", "d'un", "sans", "pour", "dans", "sur",
+        "mais", "et", "ou", "donc", "car", "ni", "que", "qui",
+        "tout", "toute", "tous", "toutes", "très", "plus", "moins",
+        "avant", "après", "pendant", "depuis", "vers", "chez"
+    }
+
     def _extract_speaker_name(self, text: str) -> Optional[str]:
         """
         Extrait le nom du locuteur à partir du contexte.
@@ -255,20 +263,26 @@ class CharacterDetector:
         - "texte" dit Marie
         - dit Marie
         - Marie dit:
+        - , dit Kamel avec un sourire -> Kamel (pas "Kamel avec")
         """
-        # Pattern: verbe + nom propre (commence par majuscule)
+        # Pattern: verbe + nom propre (un seul mot avec majuscule)
         for verb in self.speech_verbs:
-            # Pattern: "verbe Nom"
-            pattern = rf'\b{re.escape(verb)}\s+([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][a-zàâäéèêëïîôùûüç]+(?:\s+[A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][a-zàâäéèêëïîôùûüç]+)?)'
+            # Pattern: "verbe Nom" (un seul mot)
+            pattern = rf'\b{re.escape(verb)}\s+([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][a-zàâäéèêëïîôùûüç]+)'
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return match.group(1).strip()
+                name = match.group(1).strip()
+                # Ignorer si c'est un stop word
+                if name.lower() not in self.STOP_WORDS_FR:
+                    return name
 
-            # Pattern: "Nom verbe"
-            pattern = rf'([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][a-zàâäéèêëïîôùûüç]+(?:\s+[A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][a-zàâäéèêëïîôùûüç]+)?)\s+{re.escape(verb)}\b'
+            # Pattern: "Nom verbe" (un seul mot)
+            pattern = rf'([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][a-zàâäéèêëïîôùûüç]+)\s+{re.escape(verb)}\b'
             match = re.search(pattern, text)
             if match:
-                return match.group(1).strip()
+                name = match.group(1).strip()
+                if name.lower() not in self.STOP_WORDS_FR:
+                    return name
 
         return None
 

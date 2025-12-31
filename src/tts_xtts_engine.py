@@ -65,6 +65,23 @@ class XTTSEngine:
         self._device = None
         self._cloned_voices: Dict[str, str] = {}  # voice_id -> audio_path
 
+    def is_available(self) -> bool:
+        """Verifie si le moteur est disponible."""
+        try:
+            import torch
+            # On vérifie juste si on peut importer, le chargement lourd se fait plus tard
+            return True
+        except ImportError:
+            return False
+
+    def get_info(self) -> dict:
+        """Retourne des informations sur le moteur."""
+        return {
+            "engine": "XTTSEngine",
+            "model": self.config.model_name,
+            "device": self._device or "not_loaded"
+        }
+
     def _load_model(self):
         """Charge le modele XTTS."""
         if self._model is not None:
