@@ -287,13 +287,14 @@ def dry_run(input_file: Path, language: str, engine_type: str, hq: bool):
     # Detection de personnages
     try:
         from src.character_detector import CharacterDetector
-        detector = CharacterDetector()
+        detector = CharacterDetector(lang=language)
         all_text = "\n".join(ch.get_full_text() for ch in chapters)
-        characters = detector.detect_characters(all_text)
+        detector.detect_dialogue_segments(all_text)
+        characters = detector.get_characters()
         if characters:
             print(f"\n--- Personnages detectes ({len(characters)}) ---")
             for char in characters[:10]:
-                print(f"  - {char.name} ({char.gender}): {char.dialogue_count} repliques")
+                print(f"  - {char.name} ({char.gender or '?'}): {char.occurrence_count} occurrences")
     except ImportError:
         pass
 
