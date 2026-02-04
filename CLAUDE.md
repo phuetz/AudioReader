@@ -631,6 +631,42 @@ python audio_reader.py --gui
 # Opens http://localhost:7860
 ```
 
+## Boucle de feedback
+
+Après chaque modification, exécuter automatiquement :
+
+```bash
+# Activer l'environnement virtuel
+source venv/bin/activate
+
+# 1. Tests complets
+python run_tests.py
+
+# 2. Tests avec couverture
+python run_tests.py --coverage
+
+# 3. Test d'un module spécifique (si modification ciblée)
+python run_tests.py --module audio_tags
+python run_tests.py --module voice_morphing
+```
+
+**Workflow complet :**
+1. Modifier le code
+2. `python run_tests.py -v` - Lancer les tests (verbose)
+3. Si erreur → corriger et recommencer
+4. Tester manuellement avec un fichier court :
+   ```bash
+   python audio_reader.py test.md --hq
+   ```
+5. Si tout passe → valider
+
+**Tests rapides par domaine :**
+```bash
+python run_tests.py --module cache           # Cache
+python run_tests.py --module emotion_control # Émotions
+python run_tests.py --module pipeline        # Pipeline HQ
+```
+
 ## Language
 
 This is a French-focused project. Code comments, docstrings, and output messages are primarily in French. The system handles French text normalization (numbers, dates, Roman numerals) extensively.

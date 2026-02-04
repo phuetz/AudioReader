@@ -1,0 +1,65 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+venv/
+venv*/
+.venv/
+env/
+
+# Caches
+.pytest_cache/
+.synthesis_cache/
+.voice_cache/
+.mypy_cache/
+.audioreader_progress.json
+
+# Output (regenerated)
+output/
+output_*/
+audiobook_*/
+demo_output/
+
+# Large model files (downloaded at build or mounted)
+*.onnx
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Generated audio
+*.wav
+*.mp3
+*.m4a
+*.m4b
+*.ogg
+*.flac
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Docs and research
+deep_research/
+misaki_fork/
+misaki_fr_contribution/
+tests_prononciation/
+docs/
+*.md
+!CLAUDE.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend (built separately if needed)
+frontend/node_modules/
+frontend/dist/

@@ -1,0 +1,39 @@
+# AudioReader v4.0 — Docker Compose
+version: "3.9"
+
+services:
+  audioreader-api:
+    build: .
+    container_name: audioreader-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./books:/app/books
+      - ./output:/app/output
+      - ./voice_samples:/app/voice_samples
+      - models:/app/models
+    environment:
+      - AUDIOREADER_OUTPUT_DIR=/app/output
+    restart: unless-stopped
+    command: ["python", "-m", "api"]
+
+  audioreader-web:
+    build: .
+    container_name: audioreader-web
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./books:/app/books
+      - ./output:/app/output
+      - ./voice_samples:/app/voice_samples
+      - models:/app/models
+    environment:
+      - AUDIOREADER_OUTPUT_DIR=/app/output
+    restart: unless-stopped
+    command: ["python", "app.py"]
+    depends_on:
+      - audioreader-api
+
+volumes:
+  models:
+    name: audioreader-models

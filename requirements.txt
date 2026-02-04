@@ -33,4 +33,24 @@ python-multipart>=0.0.6
 # pip install mcp
 
 # Development
-# pip install pytest black flake8
+# pip install pytest black flake8 ruff pre-commit
+
+# v4.0 Dependencies
+# Progress bar (optional, enhances CLI experience)
+# pip install rich>=13.0.0
+
+# Language detection (optional)
+# pip install langdetect>=1.0.9
+
+# Subtitle generation with Whisper (optional)
+# pip install openai-whisper
+
+# New TTS engines (optional)
+# Chatterbox (Resemble AI voice cloning):
+# pip install chatterbox-tts torch torchaudio
+
+# Dia 1.6B (multi-speaker):
+# pip install dia-tts torch torchaudio
+
+# F5-TTS (flow matching):
+# pip install f5-tts torch torchaudio

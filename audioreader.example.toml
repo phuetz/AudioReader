@@ -1,0 +1,40 @@
+# AudioReader v4.0 — Configuration
+# Copiez ce fichier en 'audioreader.toml' et adaptez-le.
+# Les arguments CLI ont toujours priorite sur ce fichier.
+
+[general]
+language = "fr"
+engine = "auto"          # auto, kokoro, mms, xtts, edge, chatterbox, dia, f5
+voice = "ff_siwis"
+speed = 1.0
+header_level = 1         # 1 = #, 2 = ##, 3 = ###
+# output_dir = "./output"
+
+[quality]
+hq = false               # Pipeline haute qualite (plus lent)
+multivoice = false        # Detection automatique des personnages
+style = "storytelling"    # formal, conversational, dramatic, storytelling, documentary, intimate, energetic
+master = false            # Mastering audio final (ACX/Audible)
+use_cache = true          # Cache de synthese
+
+[voices]
+# Mapping personnage -> voice_id (pour mode multivoice)
+[voices.mapping]
+# Victor = "am_adam"
+# Marie = "af_bella"
+# Narrateur = "ff_siwis"
+
+[audio]
+sample_rate = 24000
+crossfade_ms = 50
+# ambiance = "rain"      # rain, cafe, library, fireplace, forest
+# chapter_jingle = "chime"  # chime, page_turn, orchestral, minimal
+
+[postprocessing]
+normalize_loudness = true
+target_lufs = -20.0
+acx_compliance = false
+
+[subtitles]
+# format = "srt"         # srt, vtt
+# word_level = false

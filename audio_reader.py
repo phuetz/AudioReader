@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """
-AudioReader - Convertit un livre Markdown en fichiers audio.
+AudioReader v4.0 - Convertit un livre Markdown en fichiers audio.
 
 Usage:
     python audio_reader.py livre.md
     python audio_reader.py livre.md --language en --engine kokoro
     python audio_reader.py livre.md --output ./mon_audiobook
+    python audio_reader.py livre.md --dry-run
+    python audio_reader.py livre.md --resume
     python audio_reader.py --list-voices
 
 Moteurs TTS:
-    - MMS (Meta): Français natif de haute qualité (défaut pour fr)
-    - Kokoro: Voix anglaises expressives (défaut pour en)
+    - Kokoro: Voix expressives, rapide (defaut)
+    - MMS (Meta): Francais natif haute qualite
+    - Chatterbox: Clonage voix, controle emotionnel
+    - Dia: Multi-speakers natif
+    - F5-TTS: Flow matching, CPU-friendly
+    - XTTS-v2: Clonage haute qualite
     - Edge: Microsoft Edge TTS (online, fallback)
 """
 import argparse
@@ -42,22 +48,70 @@ except ImportError:
     except ImportError:
         HAS_HQ = False
 
+# Optional config loader
+try:
+    from src.config_loader import load_config, merge_cli_args, AudioReaderConfig
+    HAS_CONFIG = True
+except ImportError:
+    try:
+        from config_loader import load_config, merge_cli_args, AudioReaderConfig
+        HAS_CONFIG = True
+    except ImportError:
+        HAS_CONFIG = False
+
+# Optional progress checkpoint
+try:
+    from src.progress_checkpoint import ProgressCheckpoint, Checkpoint
+    HAS_CHECKPOINT = True
+except ImportError:
+    try:
+        from progress_checkpoint import ProgressCheckpoint, Checkpoint
+        HAS_CHECKPOINT = True
+    except ImportError:
+        HAS_CHECKPOINT = False
+
+# Optional time estimator
+try:
+    from src.time_estimator import estimate_conversion_time, ConversionEstimate
+    HAS_ESTIMATOR = True
+except ImportError:
+    try:
+        from time_estimator import estimate_conversion_time, ConversionEstimate
+        HAS_ESTIMATOR = True
+    except ImportError:
+        HAS_ESTIMATOR = False
+
+# Optional rich progress
+try:
+    from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+    from rich.console import Console
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+
 
 # Moteurs et voix disponibles
 ENGINES = {
-    "auto": "Sélection automatique (MMS pour fr, Kokoro pour en)",
-    "mms": "MMS-TTS (Meta) - Qualité native multilingue",
-    "kokoro": "Kokoro - Voix expressives (anglais)",
+    "auto": "Selection automatique selon la langue",
+    "kokoro": "Kokoro - Voix expressives, rapide (defaut)",
+    "mms": "MMS-TTS (Meta) - Qualite native multilingue",
+    "chatterbox": "Chatterbox - Clonage voix, controle emotionnel",
+    "dia": "Dia 1.6B - Multi-speakers natif",
+    "f5": "F5-TTS - Flow matching, CPU-friendly",
+    "xtts": "XTTS-v2 - Clonage haute qualite",
     "edge": "Edge-TTS (Microsoft) - Online",
 }
 
 # Voix Kokoro disponibles
 KOKORO_VOICES = {
-    "ff_siwis": "Siwis - Femme française",
-    "af_heart": "Heart - Femme américaine",
-    "af_sarah": "Sarah - Femme américaine",
-    "am_adam": "Adam - Homme américain",
+    "ff_siwis": "Siwis - Femme francaise",
+    "af_heart": "Heart - Femme americaine",
+    "af_bella": "Bella - Femme americaine",
+    "af_sarah": "Sarah - Femme americaine",
+    "am_adam": "Adam - Homme americain",
+    "am_michael": "Michael - Homme americain",
     "bf_emma": "Emma - Femme britannique",
+    "bm_george": "George - Homme britannique",
 }
 
 # Voix Edge-TTS (fallback)
@@ -72,68 +126,100 @@ EDGE_VOICES = {
 def print_voices():
     """Affiche les moteurs et voix disponibles."""
     print("\n=== Moteurs TTS ===")
-    print("-" * 50)
+    print("-" * 60)
     for engine_id, description in ENGINES.items():
-        print(f"  {engine_id:10} - {description}")
+        print(f"  {engine_id:12} - {description}")
 
     print("\n=== Voix Kokoro ===")
-    print("-" * 50)
+    print("-" * 60)
     for voice_id, description in KOKORO_VOICES.items():
         print(f"  {voice_id:15} - {description}")
 
     print("\n=== Voix Edge-TTS (fallback) ===")
-    print("-" * 50)
+    print("-" * 60)
     for voice_id, description in EDGE_VOICES.items():
         print(f"  {voice_id:25} - {description}")
     print()
 
 
-def print_progress(current: int, total: int, chapter_title: str):
-    """Affiche la progression."""
-    percent = (current / total) * 100
-    bar_length = 30
-    filled = int(bar_length * current / total)
-    bar = "=" * filled + "-" * (bar_length - filled)
-    print(f"\r[{bar}] {percent:5.1f}% - {chapter_title[:40]}", end="", flush=True)
+class ProgressReporter:
+    """Gere l'affichage de la progression (rich ou fallback)."""
+
+    def __init__(self, total: int, use_rich: bool = True):
+        self.total = total
+        self.use_rich = use_rich and HAS_RICH
+        self._progress = None
+        self._task = None
+
+    def __enter__(self):
+        if self.use_rich:
+            self._progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeElapsedColumn(),
+            )
+            self._progress.__enter__()
+            self._task = self._progress.add_task("Conversion", total=self.total)
+        return self
+
+    def __exit__(self, *args):
+        if self._progress:
+            self._progress.__exit__(*args)
+
+    def update(self, current: int, chapter_title: str):
+        if self.use_rich and self._progress:
+            self._progress.update(self._task, completed=current, description=chapter_title[:40])
+        else:
+            percent = (current / self.total) * 100
+            bar_length = 30
+            filled = int(bar_length * current / self.total)
+            bar = "=" * filled + "-" * (bar_length - filled)
+            print(f"\r[{bar}] {percent:5.1f}% - {chapter_title[:40]}", end="", flush=True)
+
+    def finish(self):
+        if not self.use_rich:
+            print()
 
 
 import soundfile as sf
 import numpy as np
 
+
 def pipeline_synthesize_chapter(pipeline, text, output_path):
-    """Synthétise un chapitre complet avec le pipeline HQ."""
+    """Synthetise un chapitre complet avec le pipeline HQ."""
     try:
         from src.hq_pipeline_extended import AudiobookGenerator
         import tempfile
         import os
-        
-        # 1. Initialiser le générateur
+
+        # 1. Initialiser le generateur
         generator = AudiobookGenerator(config=pipeline.config)
         generator.pipeline = pipeline
-        
+
         # 2. Processus (Analyse -> Segments)
         segments = pipeline.process_chapter(text)
-        
-        # 3. Récupérer le moteur approprié
-        # Si le mode XTTS est activé dans la config
+
+        # 3. Recuperer le moteur approprie
         is_xtts = pipeline.config.tts_engine == "xtts" or pipeline.config.enable_voice_cloning
-        
+
         from src.tts_engine import create_tts_engine
         engine = create_tts_engine(
             language=pipeline.config.lang,
             engine_type="xtts" if is_xtts else "kokoro",
             voice=pipeline.config.narrator_voice
         )
-        
+
         def synth_fn(t, v, s):
-            # Utilise un fichier temporaire pour récupérer l'audio
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
             try:
-                # Le moteur unifié gère le routage vers Kokoro ou XTTS
-                # Si v est un chemin vers un WAV (clonage), XTTS le gérera via speaker_wav
-                success = engine.synthesize(t, tmp_path, voice=v, speed=s, speaker_wav=v if (is_xtts and os.path.exists(str(v))) else None)
-                
+                success = engine.synthesize(
+                    t, tmp_path, voice=v, speed=s,
+                    speaker_wav=v if (is_xtts and os.path.exists(str(v))) else None
+                )
+
                 if success and os.path.exists(tmp_path):
                     audio, _ = sf.read(tmp_path)
                     return audio
@@ -141,16 +227,16 @@ def pipeline_synthesize_chapter(pipeline, text, output_path):
             finally:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
-            
-        # Synthèse des segments
+
+        # Synthese des segments
         audios = pipeline.synthesize_segments(segments, synth_fn)
-        
-        # 4. Concaténation
+
+        # 4. Concatenation
         full_audio = generator._concatenate_with_pauses(segments, audios)
-        
+
         # 5. Sauvegarde
         sf.write(str(output_path), full_audio, 24000)
-        
+
         # 6. Mastering final
         if pipeline.config.enable_audio_enhancement:
             from src.audio_enhancer import AudioEnhancer
@@ -159,17 +245,78 @@ def pipeline_synthesize_chapter(pipeline, text, output_path):
                 mastered_path = output_path.with_name(f"{output_path.stem}_mastered.wav")
                 if hasattr(pipeline.config, 'acx_target_lufs'):
                     enhancer.config.target_lufs = pipeline.config.acx_target_lufs
-                
+
                 success = enhancer.enhance_file(output_path, mastered_path)
                 if success and mastered_path.exists():
-                    os.replace(mastered_path, output_path)
+                    import os as os_module
+                    os_module.replace(mastered_path, output_path)
 
         return True
     except Exception as e:
-        print(f"Erreur lors de la synthèse HQ : {e}")
+        print(f"Erreur lors de la synthese HQ : {e}")
         import traceback
         traceback.print_exc()
         return False
+
+
+def dry_run(input_file: Path, language: str, engine_type: str, hq: bool):
+    """Execute une analyse sans synthese."""
+    print(f"\n=== Mode Dry-Run (Analyse sans synthese) ===\n")
+    print(f"Fichier: {input_file}")
+
+    # Parser le livre
+    try:
+        chapters = parse_book(input_file, header_level=1)
+    except FileNotFoundError:
+        print(f"Erreur: Fichier non trouve - {input_file}")
+        return False
+
+    if not chapters:
+        print("Erreur: Aucun chapitre trouve.")
+        return False
+
+    # Statistiques
+    total_chars = sum(len(ch.get_full_text()) for ch in chapters)
+    total_words = sum(len(ch.get_full_text().split()) for ch in chapters)
+
+    print(f"\n--- Chapitres ({len(chapters)}) ---")
+    for ch in chapters:
+        text = ch.get_full_text()
+        print(f"  {ch.number:2}. {ch.title[:40]:<40} ({len(text.split()):>5} mots)")
+
+    # Detection de personnages
+    try:
+        from src.character_detector import CharacterDetector
+        detector = CharacterDetector()
+        all_text = "\n".join(ch.get_full_text() for ch in chapters)
+        characters = detector.detect_characters(all_text)
+        if characters:
+            print(f"\n--- Personnages detectes ({len(characters)}) ---")
+            for char in characters[:10]:
+                print(f"  - {char.name} ({char.gender}): {char.dialogue_count} repliques")
+    except ImportError:
+        pass
+
+    # Estimation du temps
+    if HAS_ESTIMATOR:
+        estimate = estimate_conversion_time(all_text, engine=engine_type, hq=hq, chapter_count=len(chapters))
+        print(f"\n--- Estimations ---")
+        print(f"  Caracteres totaux: {estimate.total_chars:,}")
+        print(f"  Mots totaux: {estimate.total_words:,}")
+        print(f"  Duree audio estimee: {estimate.audio_duration_formatted}")
+        print(f"  Temps de traitement estime: {estimate.processing_time_formatted}")
+        print(f"  Taille fichier estimee: {estimate.estimated_file_size_mb:.1f} MB")
+    else:
+        print(f"\n--- Statistiques ---")
+        print(f"  Caracteres totaux: {total_chars:,}")
+        print(f"  Mots totaux: {total_words:,}")
+        # Estimation simple
+        audio_min = total_chars / 1000
+        print(f"  Duree audio estimee: ~{int(audio_min)} min")
+
+    print()
+    return True
+
 
 def convert_book(
     input_file: Path,
@@ -184,7 +331,11 @@ def convert_book(
     multivoice: bool = False,
     style: str = "storytelling",
     master: bool = False,
-    use_cache: bool = True
+    use_cache: bool = True,
+    resume: bool = False,
+    ambiance: str = None,
+    chapter_jingle: str = None,
+    subtitles: str = None,
 ):
     """Convertit un livre Markdown en fichiers audio."""
 
@@ -194,41 +345,78 @@ def convert_book(
     try:
         chapters = parse_book(input_file, header_level=header_level)
     except FileNotFoundError:
-        print(f"Erreur: Fichier non trouvé - {input_file}")
+        print(f"Erreur: Fichier non trouve - {input_file}")
         return False
 
     if not chapters:
-        print("Erreur: Aucun chapitre trouvé dans le fichier.")
+        print("Erreur: Aucun chapitre trouve dans le fichier.")
         return False
 
-    print(f"Chapitres trouvés: {len(chapters)}")
+    print(f"Chapitres trouves: {len(chapters)}")
     for ch in chapters:
         print(f"  {ch.number}. {ch.title}")
 
-    # Créer le dossier de sortie
+    # Creer le dossier de sortie
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nDossier de sortie: {output_dir}")
 
-    # Si clonage demandé, on force XTTS si auto
+    # Checkpoint pour la reprise
+    checkpoint_mgr = None
+    start_chapter = 0
+    if HAS_CHECKPOINT and resume:
+        checkpoint_mgr = ProgressCheckpoint(output_dir)
+        book_hash = checkpoint_mgr.compute_book_hash(input_file)
+        if checkpoint_mgr.can_resume(book_hash):
+            start_chapter = checkpoint_mgr.get_resume_chapter(book_hash)
+            print(f"Reprise au chapitre {start_chapter + 1} (checkpoint trouve)")
+        else:
+            # Creer un nouveau checkpoint
+            cp = Checkpoint(
+                book_hash=book_hash,
+                book_path=str(input_file),
+                output_dir=str(output_dir),
+                last_completed_chapter=-1,
+                total_chapters=len(chapters),
+                engine=engine_type,
+                hq=hq,
+            )
+            checkpoint_mgr.save(cp)
+
+    # Si clonage demande, on force XTTS ou Chatterbox si auto
     if clone_path:
         if engine_type == "auto":
-            engine_type = "xtts"
-            print("Note: Moteur basculé sur XTTS pour le support du clonage.")
-        elif engine_type != "xtts":
-            print("Attention: L'argument --clone est ignoré si le moteur n'est pas XTTS.")
+            # Preference Chatterbox > F5 > XTTS
+            for eng in ["chatterbox", "f5", "xtts"]:
+                try:
+                    if eng == "chatterbox":
+                        from src.tts_chatterbox_engine import ChatterboxEngine
+                        if ChatterboxEngine.is_available():
+                            engine_type = eng
+                            break
+                    elif eng == "f5":
+                        from src.tts_f5_engine import F5Engine
+                        if F5Engine.is_available():
+                            engine_type = eng
+                            break
+                    else:
+                        engine_type = "xtts"
+                        break
+                except ImportError:
+                    continue
+            print(f"Note: Moteur bascule sur {engine_type} pour le support du clonage.")
 
     # Initialiser le moteur ou pipeline
     print(f"\nConfiguration TTS:")
     print(f"  Langue: {language}")
-    
+
     if hq and HAS_HQ:
-        print(f"  Moteur: Pipeline HQ étendu (v2.4)")
+        print(f"  Moteur: Pipeline HQ etendu (v4.0)")
         print(f"  Style: {style}")
         print(f"  Multi-voix: {'Oui' if multivoice else 'Non'}")
         print(f"  Mastering: {'Oui' if master else 'Non'}")
         if clone_path:
-             print(f"  Clonage: {clone_path} (via HQ Voice Cloning)")
-        
+            print(f"  Clonage: {clone_path}")
+
         config = ExtendedPipelineConfig(
             lang=language,
             narrator_voice=voice,
@@ -238,26 +426,23 @@ def convert_book(
             enable_acx_compliance=master,
             enable_audio_enhancement=master,
             enable_cache=use_cache,
-            # Activer le clonage si un fichier est fourni
             enable_voice_cloning=bool(clone_path)
         )
         pipeline = ExtendedHQPipeline(config)
-        
-        # Enregistrer la voix clonée dans le pipeline HQ
+
         if clone_path and pipeline.cloning_manager:
             pipeline.cloning_manager.register_cloned_voice("narrator", clone_path)
-            # Assigner cette voix au narrateur
             pipeline.config.narrator_voice = "narrator"
 
         engine = None
     else:
         if hq and not HAS_HQ:
-            print("⚠️ Pipeline HQ non disponible, utilisation du moteur standard.")
-        
+            print("Warning: Pipeline HQ non disponible, utilisation du moteur standard.")
+
         print(f"  Moteur: {engine_type}")
         if voice:
             print(f"  Voix: {voice}")
-        if clone_path and engine_type == "xtts":
+        if clone_path:
             print(f"  Clonage: {clone_path}")
         print(f"  Vitesse: {speed}x")
 
@@ -276,53 +461,107 @@ def convert_book(
     print("\nConversion en cours...")
     print("-" * 50)
 
+    # Optionnel: generateur de jingles
+    jingle_audio = None
+    if chapter_jingle:
+        try:
+            from src.chapter_jingles import ChapterJingleGenerator
+            jingle_gen = ChapterJingleGenerator()
+            jingle_audio = jingle_gen.generate(chapter_jingle)
+            print(f"  Jingle inter-chapitres: {chapter_jingle}")
+        except ImportError:
+            pass
+
     success_count = 0
-    for i, chapter in enumerate(chapters, 1):
-        print_progress(i, len(chapters), chapter.title)
+    total_to_process = len(chapters) - start_chapter
 
-        # Nom du fichier de sortie
-        filename = chapter.get_filename()
-        output_path = output_dir / f"{filename}.wav"
+    with ProgressReporter(total_to_process) as progress:
+        for i, chapter in enumerate(chapters):
+            if i < start_chapter:
+                continue
 
-        # Convertir en audio
-        text = chapter.get_full_text()
-        
-        if pipeline:
-            success = pipeline_synthesize_chapter(pipeline, text, output_path)
-        else:
-            # Passer le fichier de clonage si nécessaire
-            kw = {}
-            if clone_path and engine_type == "xtts":
-                kw['speaker_wav'] = str(clone_path)
-                
-            success = engine.synthesize(text, output_path, **kw)
+            progress.update(i - start_chapter + 1, chapter.title)
 
-        if success:
-            success_count += 1
+            # Nom du fichier de sortie
+            filename = chapter.get_filename()
+            output_path = output_dir / f"{filename}.wav"
 
-    print()  # Nouvelle ligne après la barre de progression
+            # Convertir en audio
+            text = chapter.get_full_text()
+
+            if pipeline:
+                success = pipeline_synthesize_chapter(pipeline, text, output_path)
+            else:
+                kw = {}
+                if clone_path:
+                    kw['speaker_wav'] = str(clone_path)
+                success = engine.synthesize(text, output_path, **kw)
+
+            # Post-traitement optionnel
+            if success and output_path.exists():
+                # Ambiance
+                if ambiance:
+                    try:
+                        from src.ambiance_engine import AmbianceEngine
+                        audio, sr = sf.read(str(output_path))
+                        amb_engine = AmbianceEngine(sample_rate=sr)
+                        audio = amb_engine.mix(audio, ambiance)
+                        sf.write(str(output_path), audio, sr)
+                    except ImportError:
+                        pass
+
+                # Sous-titres
+                if subtitles:
+                    try:
+                        from src.subtitle_generator import SubtitleGenerator
+                        sub_gen = SubtitleGenerator()
+                        sub_path = output_path.with_suffix(f".{subtitles}")
+                        if subtitles == "srt":
+                            sub_gen.generate_srt(str(output_path), text, str(sub_path))
+                        elif subtitles == "vtt":
+                            sub_gen.generate_vtt(str(output_path), text, str(sub_path))
+                    except ImportError:
+                        pass
+
+            if success:
+                success_count += 1
+                if checkpoint_mgr:
+                    checkpoint_mgr.update_chapter(i)
+
+        progress.finish()
+
     print("-" * 50)
-    print(f"\nTerminé! {success_count}/{len(chapters)} chapitres convertis.")
+    print(f"\nTermine! {success_count}/{total_to_process} chapitres convertis.")
     print(f"Fichiers audio dans: {output_dir}")
 
-    return success_count == len(chapters)
+    # Nettoyer le checkpoint si tout est termine
+    if checkpoint_mgr and success_count == total_to_process:
+        checkpoint_mgr.clear()
+
+    return success_count == total_to_process
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convertit un livre Markdown en fichiers audio.",
+        description="AudioReader v4.0 - Convertit un livre Markdown en fichiers audio.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples:
   python audio_reader.py mon_livre.md
-  python audio_reader.py mon_livre.md --language en --engine kokoro
-  python audio_reader.py mon_livre.md --output ./audiobook --speed 1.2
+  python audio_reader.py mon_livre.md --dry-run
+  python audio_reader.py mon_livre.md --hq --master
+  python audio_reader.py mon_livre.md --engine chatterbox --clone voix.wav
+  python audio_reader.py mon_livre.md --resume
   python audio_reader.py --list-voices
 
 Moteurs TTS (tous gratuits):
-  - MMS: Meta Multilingual Speech - Français natif haute qualité
-  - Kokoro: Voix expressives pour l'anglais
-  - Edge: Microsoft Edge TTS (fallback, online)
+  - Kokoro: Voix expressives, rapide (defaut)
+  - Chatterbox: Clonage voix avec controle emotionnel
+  - Dia: Multi-speakers natif avec tags non-verbaux
+  - F5-TTS: Flow matching, CPU-friendly
+  - XTTS: Clonage haute qualite
+  - MMS: Meta Multilingual Speech
+  - Edge: Microsoft Edge TTS (online)
         """
     )
 
@@ -330,46 +569,46 @@ Moteurs TTS (tous gratuits):
         "input_file",
         nargs="?",
         type=Path,
-        help="Fichier Markdown à convertir"
+        help="Fichier Markdown a convertir"
     )
 
     parser.add_argument(
         "-o", "--output",
         type=Path,
         default=None,
-        help="Dossier de sortie (défaut: ./output/<nom_livre>)"
+        help="Dossier de sortie (defaut: ./output/<nom_livre>)"
     )
 
     parser.add_argument(
         "-l", "--language",
         default="fr",
-        help="Langue (fr, en, de, es, etc.) - défaut: fr"
+        help="Langue (fr, en, de, es, etc.) ou 'auto' pour detection"
     )
 
     parser.add_argument(
         "-e", "--engine",
         default="auto",
-        choices=["auto", "mms", "kokoro", "xtts", "edge"],
-        help="Moteur TTS (auto, mms, kokoro, xtts, edge)"
+        choices=["auto", "kokoro", "mms", "chatterbox", "dia", "f5", "xtts", "edge"],
+        help="Moteur TTS"
     )
 
     parser.add_argument(
         "--clone",
         type=Path,
-        help="Fichier audio de référence pour le clonage de voix (avec moteur XTTS)"
+        help="Fichier audio de reference pour le clonage de voix"
     )
 
     parser.add_argument(
         "-v", "--voice",
         default="ff_siwis",
-        help="Voix Kokoro (défaut: ff_siwis)"
+        help="Voix (defaut: ff_siwis)"
     )
 
     parser.add_argument(
         "-s", "--speed",
         type=float,
         default=1.0,
-        help="Vitesse de lecture (défaut: 1.0)"
+        help="Vitesse de lecture (defaut: 1.0)"
     )
 
     parser.add_argument(
@@ -380,32 +619,65 @@ Moteurs TTS (tous gratuits):
         help="Niveau des headers pour les chapitres (1=#, 2=##, 3=###)"
     )
 
+    # --- v4.0 New Options ---
+    v4_group = parser.add_argument_group("v4.0 New Features")
+
+    v4_group.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Analyse sans synthese: chapitres, mots, personnages, duree estimee"
+    )
+
+    v4_group.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reprendre une conversion interrompue"
+    )
+
+    v4_group.add_argument(
+        "--subtitles",
+        choices=["srt", "vtt"],
+        help="Generer des sous-titres synchronises"
+    )
+
+    v4_group.add_argument(
+        "--ambiance",
+        choices=["library", "rain", "fireplace", "cafe", "forest"],
+        help="Ajouter une ambiance sonore de fond"
+    )
+
+    v4_group.add_argument(
+        "--chapter-jingle",
+        choices=["chime", "page_turn", "orchestral", "minimal", "silence"],
+        help="Jingle entre les chapitres"
+    )
+
     # --- HQ Options ---
-    hq_group = parser.add_argument_group("HQ Pipeline Options (v2.4)")
-    
+    hq_group = parser.add_argument_group("HQ Pipeline Options")
+
     hq_group.add_argument(
         "--hq",
         action="store_true",
-        help="Utilise le pipeline Haute Qualité (plus lent, mais bien meilleur)"
+        help="Utilise le pipeline Haute Qualite (plus lent, meilleur resultat)"
     )
 
     hq_group.add_argument(
         "--multivoice",
         action="store_true",
-        help="Active la détection et l'attribution automatique des voix pour les dialogues"
+        help="Detection et attribution automatique des voix pour les dialogues"
     )
 
     hq_group.add_argument(
         "--style",
-        choices=["storytelling", "formal", "conversational", "dramatic"],
+        choices=["storytelling", "formal", "conversational", "dramatic", "documentary", "intimate", "energetic"],
         default="storytelling",
-        help="Style de narration (pour le mode HQ)"
+        help="Style de narration"
     )
 
     hq_group.add_argument(
         "--master",
         action="store_true",
-        help="Active le mastering audio final (conforme ACX/Audible)"
+        help="Mastering audio final (conforme ACX/Audible)"
     )
 
     hq_group.add_argument(
@@ -413,9 +685,10 @@ Moteurs TTS (tous gratuits):
         action="store_false",
         dest="use_cache",
         default=True,
-        help="Désactive le cache de synthèse"
+        help="Desactive le cache de synthese"
     )
 
+    # --- Utility Options ---
     parser.add_argument(
         "--list-voices",
         action="store_true",
@@ -428,7 +701,27 @@ Moteurs TTS (tous gratuits):
         help="Lancer l'interface graphique (Gradio)"
     )
 
+    parser.add_argument(
+        "--api-v2",
+        action="store_true",
+        help="Lancer le serveur API v2 (FastAPI + React frontend)"
+    )
+
     args = parser.parse_args()
+
+    # Charger la configuration TOML si disponible
+    if HAS_CONFIG:
+        config = load_config()
+        config = merge_cli_args(config, args)
+    else:
+        config = None
+
+    # Lancer l'API v2
+    if args.api_v2:
+        print("Lancement de l'API v2...")
+        from api import main as api_main
+        api_main()
+        return 0
 
     # Lancer le GUI
     if args.gui:
@@ -443,14 +736,31 @@ Moteurs TTS (tous gratuits):
         print_voices()
         return 0
 
-    # Vérifier le fichier d'entrée
+    # Verifier le fichier d'entree
     if not args.input_file:
         parser.print_help()
         return 1
 
     if not args.input_file.exists():
-        print(f"Erreur: Fichier non trouvé - {args.input_file}")
+        print(f"Erreur: Fichier non trouve - {args.input_file}")
         return 1
+
+    # Detection automatique de langue
+    if args.language == "auto":
+        try:
+            from src.language_detector import AutoLanguageDetector
+            detector = AutoLanguageDetector()
+            text_sample = args.input_file.read_text(encoding="utf-8")[:5000]
+            result = detector.detect(text_sample)
+            args.language = result.language
+            print(f"Langue detectee: {result.language} (confiance: {result.confidence:.0%})")
+        except ImportError:
+            args.language = "fr"
+
+    # Mode dry-run
+    if args.dry_run:
+        success = dry_run(args.input_file, args.language, args.engine, args.hq)
+        return 0 if success else 1
 
     # Dossier de sortie
     if args.output:
@@ -472,7 +782,11 @@ Moteurs TTS (tous gratuits):
         multivoice=args.multivoice,
         style=args.style,
         master=args.master,
-        use_cache=args.use_cache
+        use_cache=args.use_cache,
+        resume=args.resume,
+        ambiance=args.ambiance,
+        chapter_jingle=args.chapter_jingle,
+        subtitles=args.subtitles,
     )
 
     return 0 if success else 1

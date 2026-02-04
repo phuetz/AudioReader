@@ -11,7 +11,7 @@ build/
 
 # Virtual environments
 venv/
-venv310/
+venv*/
 .venv/
 env/
 
@@ -20,6 +20,11 @@ env/
 .synthesis_cache/
 .voice_cache/
 .mypy_cache/
+.ruff_cache/
+
+# AudioReader progress files
+.audioreader_progress.json
+.audioreader_data/
 
 # Output directories (generated audio)
 output/
@@ -73,3 +78,16 @@ corrections/
 /audio_reader_hq.py
 /audio_reader_kokoro.py
 *:Zone.Identifier
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Config files (keep the example)
+audioreader.toml
+!audioreader.example.toml
+
+# Node modules (frontend)
+node_modules/
