@@ -7,12 +7,14 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
+![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)
 
 ---
 
 ## Table des matieres
 
 - [Fonctionnalites](#fonctionnalites)
+- [Nouveautes v4.0 - Interface Moderne et Nouveaux Moteurs](#nouveautes-v40---interface-moderne-et-nouveaux-moteurs)
 - [Nouveautes v3.0 - Plateforme Complete](#nouveautes-v30---plateforme-complete)
 - [Nouveautes v2.4 - Outils et Moteurs](#nouveautes-v24---outils-et-moteurs)
 - [Nouveautes v2.3 - Style ElevenLabs](#nouveautes-v23---style-elevenlabs)
@@ -26,6 +28,7 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - [Qualite Audio](#qualite-audio)
 - [Distribution](#distribution)
 - [Integration IA (Claude / ChatGPT)](#integration-ia-claude--chatgpt)
+- [Docker](#docker)
 - [References Scientifiques](#references-scientifiques)
 - [Sources et Credits](#sources-et-credits)
 
@@ -69,6 +72,218 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - **CLI complete**: Scripts en ligne de commande avec options avancees
 - **Interface Web**: Application Gradio intuitive
 - **Pipeline HQ**: Script dedie pour qualite maximale
+
+---
+
+## Nouveautes v4.0 - Interface Moderne et Nouveaux Moteurs
+
+### Interface React + API v2
+
+AudioReader dispose maintenant d'une **interface web moderne** basee sur React 18, TypeScript et Tailwind CSS v4:
+
+```bash
+# Lancer l'interface React + API v2
+python audio_reader.py --api-v2
+# -> Frontend: http://localhost:5173
+# -> API: http://localhost:8000
+```
+
+**Fonctionnalites de l'interface:**
+- Dashboard avec statistiques et jobs recents
+- Conversion de livres avec suivi en temps reel (SSE)
+- Galerie de voix avec pre-ecoute
+- Gestion des personnages et attribution des voix
+- Clonage de voix depuis video
+- Serveur podcast integre
+- Gestion des fichiers uploades
+
+### Nouveaux Moteurs TTS
+
+Trois nouveaux moteurs TTS gratuits et locaux:
+
+| Moteur | Specialite | Caracteristique |
+|--------|------------|-----------------|
+| **Chatterbox** | Clonage voix | Controle d'exaggeration emotionnelle (0-1) |
+| **Dia 1.6B** | Multi-speakers | Tags natifs `[S1]`/`[S2]`, sons non-verbaux |
+| **F5-TTS** | Flow Matching | CPU-friendly, clonage avec ~10s audio |
+
+```bash
+# Utiliser Chatterbox avec clonage
+python audio_reader.py livre.md --engine chatterbox --clone voix.wav
+
+# Utiliser Dia pour dialogues multi-speakers
+python audio_reader.py livre.md --engine dia
+
+# Utiliser F5-TTS
+python audio_reader.py livre.md --engine f5 --clone reference.wav
+```
+
+**Selecteur intelligent de moteur:**
+```bash
+# Le moteur optimal est choisi automatiquement
+python audio_reader.py livre.md --engine auto
+```
+
+### API Compatible OpenAI
+
+Endpoint `/v1/audio/speech` compatible avec le SDK OpenAI:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="unused")
+
+response = client.audio.speech.create(
+    model="kokoro",  # ou "chatterbox", "dia", "f5"
+    voice="alloy",   # mappe vers af_bella
+    input="Bonjour, ceci est un test."
+)
+response.stream_to_file("output.mp3")
+```
+
+### Mode Analyse (`--dry-run`)
+
+Analysez un livre sans synthese pour estimer temps et ressources:
+
+```bash
+python audio_reader.py livre.md --dry-run
+```
+
+**Affiche:**
+- Nombre de chapitres et mots
+- Personnages detectes
+- Duree audio estimee
+- Temps de traitement estime
+- Espace disque requis
+
+### Reprise Apres Interruption (`--resume`)
+
+Reprenez une conversion interrompue exactement ou vous l'avez laissee:
+
+```bash
+# Premiere execution (interrompue)
+python audio_reader.py livre.md --hq
+
+# Reprise automatique
+python audio_reader.py livre.md --hq --resume
+```
+
+Le systeme sauvegarde un checkpoint JSON avec le hash MD5 du fichier source.
+
+### Sous-titres Synchronises
+
+Generez des sous-titres SRT ou VTT avec alignement Whisper:
+
+```bash
+# Generer sous-titres SRT
+python audio_reader.py livre.md --subtitles srt
+
+# Generer sous-titres VTT (Web)
+python audio_reader.py livre.md --subtitles vtt
+```
+
+### Ambiance Sonore
+
+Ajoutez une musique d'ambiance avec ducking automatique:
+
+```bash
+python audio_reader.py livre.md --ambiance rain
+python audio_reader.py livre.md --ambiance cafe
+python audio_reader.py livre.md --ambiance library
+python audio_reader.py livre.md --ambiance forest
+python audio_reader.py livre.md --ambiance fireplace
+```
+
+### Jingles Inter-Chapitres
+
+Transitions sonores entre chapitres:
+
+```bash
+python audio_reader.py livre.md --chapter-jingle chime
+python audio_reader.py livre.md --chapter-jingle page_turn
+python audio_reader.py livre.md --chapter-jingle orchestral
+python audio_reader.py livre.md --chapter-jingle minimal
+```
+
+### Simulation Acoustique
+
+Simulez differents environnements d'ecoute:
+
+```python
+from src.room_simulator import RoomSimulator
+
+simulator = RoomSimulator()
+audio = simulator.process(audio, preset="living_room")
+# Presets: studio, living_room, theater, intimate
+```
+
+### Detection Automatique de Langue
+
+```bash
+# Detection automatique
+python audio_reader.py livre.md --language auto
+```
+
+Detecte: francais, anglais, allemand, espagnol, italien, portugais.
+
+### Attribution Dialogues par LLM
+
+Utilise Ollama ou OpenAI pour resoudre les attributions ambigues:
+
+```python
+from src.llm_dialogue_attributor import LLMDialogueAttributor
+
+attributor = LLMDialogueAttributor(provider="ollama", model="llama3.2")
+result = attributor.attribute("Vraiment ?", context="Marie regarda Pierre...")
+print(result.speaker)  # "Marie" ou "Pierre"
+```
+
+### Nettoyage Intelligent PDF
+
+Nettoie automatiquement les textes mal convertis depuis PDF:
+
+```python
+from src.smart_text_cleaner import SmartTextCleaner
+
+cleaner = SmartTextCleaner()
+clean_text = cleaner.clean(raw_pdf_text)
+# Supprime en-tetes/pieds recurrents, numeros de page, repare cesures
+```
+
+### Configuration TOML
+
+Centralisez vos parametres dans `audioreader.toml`:
+
+```toml
+[general]
+language = "fr"
+engine = "kokoro"
+voice = "ff_siwis"
+
+[quality]
+hq = true
+multivoice = true
+style = "storytelling"
+
+[audio]
+ambiance = "library"
+chapter_jingle = "chime"
+
+[postprocessing]
+master = true
+acx_compliance = true
+```
+
+### Docker
+
+```bash
+# Build et lancement
+docker-compose up -d
+
+# Services:
+# - audioreader-api: API v2 sur :8000
+# - audioreader-web: Gradio sur :7860
+```
 
 ---
 
@@ -855,12 +1070,38 @@ python audio_reader.py livre.md --sentence-pause 0.2
 AudioReader/
 ├── audio_reader.py         # Script CLI principal (Standard & HQ avec --hq)
 ├── app.py                  # Interface Web Gradio (v3.0 complete)
-├── api_server.py           # API REST FastAPI (pour ChatGPT)
+├── api_server.py           # API REST FastAPI v1 (pour ChatGPT)
 ├── mcp_server.py           # Serveur MCP (pour Claude Desktop)
 ├── postprocess.py          # Post-traitement audio legacy
 ├── run_tests.py            # Lanceur de tests pytest
 ├── kokoro-v1.0.onnx        # Modele TTS (310 MB)
 ├── voices-v1.0.bin         # Donnees voix (27 MB)
+├── audioreader.example.toml # Configuration TOML exemple
+│
+├── api/                    # API v2 (FastAPI)
+│   ├── __init__.py         # Factory create_app()
+│   ├── dependencies.py     # JobStore, constantes
+│   ├── models.py           # Pydantic schemas
+│   └── routers/
+│       ├── config.py       # /api/v2/health, /api/v2/config
+│       ├── generation.py   # /api/v2/generate/*
+│       ├── jobs.py         # /api/v2/jobs/* + SSE
+│       ├── voices.py       # /api/v2/voices/*
+│       ├── files.py        # /api/v2/files/*
+│       ├── analysis.py     # /api/v2/analyze
+│       ├── podcast.py      # /api/v2/podcast/*
+│       ├── projects.py     # /api/v2/projects/*
+│       └── openai_compat.py # /v1/audio/speech (OpenAI API)
+│
+├── frontend/               # Interface React (v4.0)
+│   ├── src/
+│   │   ├── pages/          # DashboardPage, BookConversionPage, etc.
+│   │   ├── components/     # UI components (Button, Card, etc.)
+│   │   ├── stores/         # Zustand stores
+│   │   ├── api/            # Client API + SSE
+│   │   └── hooks/          # React hooks
+│   ├── package.json
+│   └── vite.config.ts
 │
 ├── src/
 │   │   # --- MOTEURS TTS ---
@@ -924,6 +1165,24 @@ AudioReader/
 │   ├── input_converter.py      # PDF/EPUB -> Markdown
 │   ├── audio_extractor.py      # Video -> WAV (ffmpeg)
 │   ├── podcast_server.py       # Serveur RSS local + QR code
+│   │
+│   │   # --- MODULES v4.0 ---
+│   ├── tts_chatterbox_engine.py # Chatterbox TTS (clonage + emotion)
+│   ├── tts_dia_engine.py       # Dia 1.6B (multi-speakers)
+│   ├── tts_f5_engine.py        # F5-TTS (flow matching)
+│   ├── engine_selector.py      # Selection intelligente moteur
+│   ├── time_estimator.py       # Estimation temps conversion
+│   ├── progress_checkpoint.py  # Reprise apres interruption
+│   ├── config_loader.py        # Configuration TOML
+│   ├── subtitle_generator.py   # Generation SRT/VTT
+│   ├── ambiance_engine.py      # Ambiance sonore (rain, cafe...)
+│   ├── chapter_jingles.py      # Jingles inter-chapitres
+│   ├── room_simulator.py       # Simulation acoustique
+│   ├── silence_optimizer.py    # Optimisation silences
+│   ├── language_detector.py    # Detection auto langue
+│   ├── llm_dialogue_attributor.py # Attribution dialogues LLM
+│   ├── smart_text_cleaner.py   # Nettoyage PDF intelligent
+│   ├── chapter_summarizer.py   # Resume chapitres (metadata M4B)
 │   │
 │   │   # --- UTILITAIRES ---
 │   ├── preview_generator.py    # Apercu 30 secondes
@@ -1032,6 +1291,9 @@ AudioReader/
 | **Kokoro-82M** | Modele TTS 82M params | Apache 2.0 |
 | **kokoro-onnx** | Runtime ONNX pour Kokoro | MIT |
 | **Edge-TTS** | Microsoft Edge TTS | LGPL-3.0 |
+| **Chatterbox** | Resemble AI voice cloning | Apache 2.0 |
+| **Dia 1.6B** | Nari Labs multi-speaker | Apache 2.0 |
+| **F5-TTS** | Flow matching TTS | MIT |
 
 ### Outils audio
 
@@ -1047,6 +1309,10 @@ AudioReader/
 Ce projet est sous licence Apache 2.0. Voir [LICENSE](LICENSE) pour plus de details.
 
 Le modele Kokoro-82M est sous licence Apache 2.0.
+
+---
+
+*AudioReader v4.0 - Plateforme complete avec interface moderne, nouveaux moteurs TTS et infrastructure Docker*
 
 ---
 
@@ -1133,4 +1399,74 @@ Documentation complete : **[INTEGRATION.md](INTEGRATION.md)**
 
 ---
 
-*AudioReader v3.0 - Plateforme complete pour convertir vos livres en audiobooks de qualite professionnelle*
+## Docker
+
+### Build et Lancement
+
+```bash
+# Construire l'image
+docker build -t audioreader .
+
+# Lancer avec docker-compose
+docker-compose up -d
+
+# Services disponibles:
+# - audioreader-api : http://localhost:8000 (API v2)
+# - audioreader-web : http://localhost:7860 (Gradio)
+```
+
+### Volumes
+
+```yaml
+volumes:
+  - ./books:/app/books          # Livres source
+  - ./output:/app/output        # Audio genere
+  - ./voice_samples:/app/voice_samples  # Samples clonage
+  - models:/app/models          # Modeles TTS (persistant)
+```
+
+### Variables d'Environnement
+
+| Variable | Description | Defaut |
+|----------|-------------|--------|
+| `AUDIOREADER_ENGINE` | Moteur TTS par defaut | `kokoro` |
+| `AUDIOREADER_LANGUAGE` | Langue par defaut | `fr` |
+| `AUDIOREADER_VOICE` | Voix par defaut | `ff_siwis` |
+
+---
+
+## CI/CD
+
+### GitHub Actions
+
+Workflows automatises pour tests et releases:
+
+```yaml
+# .github/workflows/tests.yml
+# - Lint avec ruff
+# - Tests pytest sur Python 3.10, 3.11, 3.12
+# - Rapport de couverture
+
+# .github/workflows/release.yml
+# - Build Docker image
+# - Create GitHub Release
+# - Trigger sur tags v*
+```
+
+### Pre-commit Hooks
+
+```bash
+# Installer les hooks
+pip install pre-commit
+pre-commit install
+
+# Hooks actifs:
+# - ruff (lint + format)
+# - trailing-whitespace
+# - end-of-file-fixer
+# - check-yaml, check-json
+```
+
+---
+
+## References Scientifiques
