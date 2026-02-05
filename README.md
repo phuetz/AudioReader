@@ -9,10 +9,29 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)
 
+## 📸 Captures d'écran
+
+### Dashboard
+![Dashboard](https://github.com/user-attachments/assets/167194b4-da57-4332-a42a-c539032a7944)
+
+### Conversion de livre
+![Conversion livre](https://github.com/user-attachments/assets/692c7d7f-3158-4ebe-8129-bb57ceb804dc)
+
+### Gestion des personnages
+![Personnages](https://github.com/user-attachments/assets/e499455e-7916-43c4-b3ef-531d77acc222)
+
+### Clonage vocal
+![Clonage vocal](https://github.com/user-attachments/assets/d7bf46d7-76f6-4e7c-bf48-e1a55454e228)
+
+### Paramètres
+![Paramètres](https://github.com/user-attachments/assets/7801553f-2949-415c-8441-b47b0802da92)
+
+
 ---
 
 ## Table des matieres
 
+- [Captures d'écran](#-captures-décran)
 - [Fonctionnalites](#fonctionnalites)
 - [Nouveautes v5.0 - Detection Amelioree et Export Professionnel](#nouveautes-v50---detection-amelioree-et-export-professionnel)
 - [Nouveautes v4.0 - Interface Moderne et Nouveaux Moteurs](#nouveautes-v40---interface-moderne-et-nouveaux-moteurs)
