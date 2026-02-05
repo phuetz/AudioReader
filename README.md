@@ -292,6 +292,56 @@ result = exporter.export_for_acx(audio_path, output_path, metadata)
 | Podcast | MP3 128k | -16 LUFS | Mono, tags ID3 |
 | ACX/Audible | MP3 192k | -23 to -18 dB RMS | Peak max -3dB, noise floor < -60dB |
 
+### 8. Pipeline LLM Unifie
+
+**Centralisation de toutes les ameliorations basees sur LLM :**
+
+```python
+from src.llm_enhancer import create_gemini_enhancer, create_ollama_enhancer
+
+# Avec Gemini 2.5 Flash (rapide, cloud)
+enhancer = create_gemini_enhancer(api_key="votre-cle")
+
+# Ou avec Ollama (local, gratuit)
+enhancer = create_ollama_enhancer(model="llama3.2")
+
+# Validation de personnage (elimine les faux positifs)
+result = enhancer.validate_character_name("coupe", "Il a coupe la parole.")
+print(result.is_character)  # False
+
+# Insertion automatique de tags audio
+tagged = enhancer.auto_insert_audio_tags("Il murmura doucement...")
+# "[whispers] Il murmura doucement..."
+
+# Analyse emotionnelle contextuelle
+emotion = enhancer.analyze_emotion_contextual("Soudain, un cri retentit !")
+print(emotion.primary_emotion)  # EmotionType.FEAR
+
+# Pipeline complet
+result = enhancer.enhance_text_for_tts(
+    "Soudain, un cri dechira le silence !",
+    insert_tags=True,
+    detect_emotions=True,
+    suggest_prosody=True
+)
+```
+
+**Providers supportes :**
+
+| Provider | Type | Modele par defaut |
+|----------|------|------------------|
+| Ollama | Local, gratuit | llama3.2 |
+| OpenAI | Cloud | gpt-4o-mini |
+| Anthropic | Cloud | claude-3-haiku |
+| **Gemini** | Cloud | **gemini-2.5-flash-preview-05-20** |
+
+**Variables d'environnement :**
+```bash
+export GEMINI_API_KEY="votre-cle-gemini"
+export OPENAI_API_KEY="votre-cle-openai"
+export ANTHROPIC_API_KEY="votre-cle-anthropic"
+```
+
 ### Modules v5.0
 
 | Module | Fichier | Description |
@@ -304,6 +354,7 @@ result = exporter.export_for_acx(audio_path, output_path, metadata)
 | Profils | `config_profiles.py` | 7 profils predefinis |
 | Export | `platform_exporter.py` | Export multi-plateformes |
 | Streaming | `api/routers/streaming.py` | Endpoint SSE |
+| **LLM Enhancer** | `llm_enhancer.py` | **Pipeline LLM unifie (Gemini/Ollama/OpenAI)** |
 
 ---
 
