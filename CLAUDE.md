@@ -126,6 +126,9 @@ python generate_tome1.py
 - `acx_compliance.py` - Conformité ACX/Audible (normalisation, peaks, noise floor)
 - `llm_emotion_detector.py` - Détection d'émotion contextuelle par LLM (Ollama/OpenAI)
 
+**LLM Enhancer (v5.0):**
+- `llm_enhancer.py` - Pipeline LLM unifié (Ollama/OpenAI/Anthropic/Gemini 2.5 Flash)
+
 **Pipelines:**
 - `hq_pipeline.py` - Unified HQ processing (v2.0)
 - `hq_pipeline_extended.py` - Extended pipeline with all v2.1+ features, integrates bio-acoustics
@@ -527,6 +530,80 @@ print(state.mood_trend)  # "stable", "improving", or "declining"
 ```
 
 **Fallback:** Uses keyword-based detection if LLM unavailable.
+
+## LLM Enhancer (v5.0)
+
+`LLMEnhancer` is a unified pipeline for all LLM-based improvements:
+
+**Supported Providers:**
+- Ollama (local, free - recommended)
+- OpenAI (cloud)
+- Anthropic Claude (cloud)
+- **Gemini 2.5 Flash** (cloud, fast)
+
+```python
+from src.llm_enhancer import (
+    LLMEnhancer, LLMConfig, LLMProvider,
+    create_gemini_enhancer, create_ollama_enhancer
+)
+
+# Create with Gemini 2.5 Flash
+enhancer = create_gemini_enhancer(api_key="your-api-key")
+
+# Or with Ollama (local)
+enhancer = create_ollama_enhancer(model="llama3.2")
+
+# Validate character name (eliminate false positives)
+result = enhancer.validate_character_name("coupé", "Il a coupé la parole.")
+print(result.is_character)  # False
+
+# Auto-insert audio tags
+tagged = enhancer.auto_insert_audio_tags("Il murmura doucement...")
+# Returns: "[whispers] Il murmura doucement..."
+
+# Analyze emotion with context
+emotion = enhancer.analyze_emotion_contextual(
+    "Soudain, un cri retentit !",
+    narrative_context=NarrativeContext.SUSPENSE
+)
+print(emotion.primary_emotion)  # EmotionType.FEAR
+
+# Attribute dialogue
+attr = enhancer.attribute_dialogue(
+    "Vraiment ?",
+    context="Marie regarda Pierre avec surprise.",
+    known_characters=["Marie", "Pierre"]
+)
+print(attr.speaker)  # "Marie"
+
+# Full enhancement pipeline
+result = enhancer.enhance_text_for_tts(
+    "Soudain, un cri déchira le silence !",
+    insert_tags=True,
+    detect_emotions=True,
+    suggest_prosody=True
+)
+print(result["emotion"]["primary"])  # "fear"
+print(result["prosody"]["speed"])    # 0.85 (slower for suspense)
+```
+
+**Available Methods:**
+| Method | Description |
+|--------|-------------|
+| `validate_character_name()` | Validate if name is a character (not false positive) |
+| `auto_insert_audio_tags()` | Insert `[whispers]`, `[excited]`, etc. automatically |
+| `analyze_emotion_contextual()` | Contextual emotion detection with subtext |
+| `attribute_dialogue()` | Determine WHO is speaking |
+| `detect_narrative_context()` | Action, description, dialogue, suspense... |
+| `suggest_prosody()` | Speed, pitch, volume, pauses suggestions |
+| `enhance_text_for_tts()` | Full pipeline combining all methods |
+
+**Environment Variables:**
+```bash
+export GEMINI_API_KEY="your-gemini-key"
+export OPENAI_API_KEY="your-openai-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"
+```
 
 ## v3.0 Platform Features
 

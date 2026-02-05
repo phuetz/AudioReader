@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "description": "Configuration des voix pour AudioReader Multi-Voice XTTS-v2",
+
+  "default_voices": {
+    "narrator": "narrator_sample_01",
+    "male": "voice_male_normal",
+    "female": "female_narrator_01",
+    "unknown": "narrator_sample_02"
+  },
+
+  "character_mappings": {
+    "Les Conquérants du Pognon": {
+      "NARRATOR": "narrator_sample_01",
+      "Victor": "voice_male_light",
+      "Victor Kane": "voice_male_light",
+      "Kamel": "voice_male_deep",
+      "Kamel Boumediene": "voice_male_deep",
+      "Crawford": "voice_male_normal",
+      "James Crawford": "voice_male_normal",
+      "Paulo": "mms_fra_default",
+      "Momo": "male_extended",
+      "Sophie": "voice_female_high",
+      "Marie": "female_narrator_01",
+      "La mère": "librivox_female_01",
+      "Mère": "librivox_female_01"
+    }
+  },
+
+  "voice_descriptions": {
+    "narrator_sample_01": "Narrateur principal - voix neutre et posée",
+    "narrator_sample_02": "Narrateur alternatif",
+    "narrator_sample_03": "Narrateur 3",
+    "voice_male_deep": "Homme - voix grave (Kamel)",
+    "voice_male_normal": "Homme - voix normale (Crawford)",
+    "voice_male_light": "Homme jeune - voix légère (Victor)",
+    "mms_fra_default": "Homme - voix synthétique (Paulo)",
+    "male_extended": "Homme - voix standard (Momo)",
+    "female_narrator_01": "Femme - voix douce (Marie)",
+    "female_narrator_02": "Femme - voix alternative",
+    "librivox_female_01": "Femme - voix fatiguée (Mère)",
+    "librivox_female_02": "Femme - LibriVox 2",
+    "voice_female_high": "Femme jeune - voix aiguë (Sophie)"
+  },
+
+  "sources": {
+    "narrator_*": "Extrait audio XTTS-v2 généré",
+    "voice_male_*": "Pitch-shift du narrateur (-1 à -4 demi-tons)",
+    "voice_female_*": "Pitch-shift du narrateur (+3 demi-tons)",
+    "mms_*": "Facebook MMS-TTS (français)",
+    "librivox_*": "LibriVox / Archive.org (domaine public)",
+    "female_narrator_*": "Dérivé du narrateur"
+  }
+}
