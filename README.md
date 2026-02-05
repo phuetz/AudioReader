@@ -14,6 +14,7 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 ## Table des matieres
 
 - [Fonctionnalites](#fonctionnalites)
+- [Nouveautes v5.0 - Detection Amelioree et Export Professionnel](#nouveautes-v50---detection-amelioree-et-export-professionnel)
 - [Nouveautes v4.0 - Interface Moderne et Nouveaux Moteurs](#nouveautes-v40---interface-moderne-et-nouveaux-moteurs)
 - [Nouveautes v3.0 - Plateforme Complete](#nouveautes-v30---plateforme-complete)
 - [Nouveautes v2.4 - Outils et Moteurs](#nouveautes-v24---outils-et-moteurs)
@@ -72,6 +73,237 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - **CLI complete**: Scripts en ligne de commande avec options avancees
 - **Interface Web**: Application Gradio intuitive
 - **Pipeline HQ**: Script dedie pour qualite maximale
+
+---
+
+## Nouveautes v5.0 - Detection Amelioree et Export Professionnel
+
+### 1. Detection de Personnages Amelioree
+
+Le systeme de detection de personnages a ete entierement repense pour eliminer les faux positifs :
+
+**Stop words etendus :** Expansion de 25 a ~200 mots (participes passes, adverbes, noms communs post-verbe, negatifs).
+
+**Scoring de confiance :** Chaque personnage detecte recoit un score de confiance (0.0-1.0) base sur :
+- Presence dans le dictionnaire de prenoms francais (+0.3)
+- Nombre d'occurrences dans le texte (+0.2)
+- Contexte syntaxique (apres verbe de parole, majuscule)
+
+**Dictionnaire de prenoms francais :** ~1000 prenoms INSEE avec detection automatique du genre.
+
+```python
+from src.french_names import is_french_name, get_gender_from_name
+
+is_french_name("Marie")      # True
+get_gender_from_name("Pierre") # "M"
+```
+
+**Validation LLM optionnelle :** Pour les cas ambigus (confiance 0.3-0.7), le systeme peut valider via Ollama/OpenAI.
+
+### 2. Support GPU et Streaming Temps Reel
+
+**Configuration GPU unifiee :**
+```python
+from src.gpu_config import GPUConfig
+
+config = GPUConfig(
+    use_gpu=True,
+    device="auto",  # "cuda", "mps", "cpu"
+    memory_fraction=0.8
+)
+print(config.get_device())  # Auto-detect CUDA/MPS/CPU
+```
+
+**Moteur Kokoro avec GPU :**
+```python
+from src.tts_kokoro_engine import KokoroTTSEngine
+from src.gpu_config import GPUConfig
+
+engine = KokoroTTSEngine(gpu_config=GPUConfig(use_gpu=True))
+print(f"GPU actif: {engine.is_using_gpu}")
+```
+
+**Streaming SSE temps reel :**
+```bash
+# Endpoint streaming
+curl -N -X POST http://localhost:8000/api/v2/streaming/synthesize-stream \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Bonjour, ceci est un test de streaming."}'
+```
+
+**Interface async pour integration :**
+```python
+from src.tts_async import AsyncKokoroWrapper
+
+async def stream_audio():
+    engine = AsyncKokoroWrapper()
+    async for chunk in engine.synthesize_stream("Texte a synthetiser"):
+        # chunk.audio contient les samples audio
+        play_audio(chunk.audio)
+```
+
+### 3. Lecteur Web Integre
+
+**Floating Player global :** Le frontend React dispose maintenant d'un lecteur audio flottant visible sur toutes les pages.
+
+**Playlist avec queue :**
+```typescript
+// Zustand store avec persistance
+const { queue, addTrack, next, toggleShuffle } = usePlaylistStore()
+
+addTrack({ url: '/output/chapitre1.mp3', title: 'Chapitre 1' })
+```
+
+**Streaming playback avec Web Audio API :**
+```typescript
+const { startStreaming, isBuffering, progress } = useStreamingPlayback()
+
+// Demarre le streaming SSE et joue en temps reel
+await startStreaming("Texte a synthetiser", { voice: "ff_siwis" })
+```
+
+### 4. Effets Sonores Contextuels
+
+**Moteur d'effets proceduraux :**
+```python
+from src.soundfx_engine import SoundFXEngine, BUILTIN_EFFECTS
+
+engine = SoundFXEngine()
+
+# 12 effets disponibles
+audio = engine.generate('whoosh', intensity=0.5, duration=0.3)
+audio = engine.generate('impact', intensity=0.7, duration=0.2)
+audio = engine.generate('suspense', intensity=0.4, duration=2.0)
+```
+
+**Effets integres :**
+
+| Effet | Description | Usage typique |
+|-------|-------------|---------------|
+| `whoosh` | Balayage frequentiel | Transitions rapides |
+| `impact` | Burst de bruit | Moments dramatiques |
+| `suspense` | Drone basse frequence | Tension |
+| `magic` | Harmoniques + shimmer | Moments fantastiques |
+| `page_turn` | Bruit de page | Transitions |
+| `chapter_start` | Jingle d'ouverture | Debut de chapitre |
+
+**Integration dans le pipeline HQ :**
+```bash
+python audio_reader.py livre.md --hq --sound-effects
+```
+
+### 5. Voix Francaises Additionnelles
+
+**21 voix Edge TTS francaises :**
+
+| Region | Voix feminines | Voix masculines |
+|--------|---------------|-----------------|
+| France | Denise, Eloise, Brigitte, Celeste, Coralie, Jacqueline, Josephine, Yvette | Henri, Alain, Claude, Jerome, Maurice, Remy, Yves |
+| Canada | Sylvie | Antoine, Jean, Thierry |
+| Belgique | Charline | Gerard |
+| Suisse | Ariane | Fabrice |
+
+**Voix MMS (Meta) :**
+```python
+# Voix MMS pour le francais
+MMS_VOICES = {
+    "fr": [
+        {"id": "mms_fr_default", "name": "MMS Francais"},
+        {"id": "mms_fr_male", "name": "MMS Homme FR"},
+        {"id": "mms_fr_female", "name": "MMS Femme FR"}
+    ]
+}
+```
+
+### 6. Traitement par Lots et Profils
+
+**File d'attente de conversion :**
+```python
+from src.batch_processor import BatchProcessor, JobPriority
+
+processor = BatchProcessor(max_concurrent=2)
+
+# Ajouter des jobs avec priorites
+processor.add_job(Path("livre1.md"), {"hq": True}, JobPriority.HIGH)
+processor.add_job(Path("livre2.md"), {"hq": False}, JobPriority.NORMAL)
+
+# Traiter tous les jobs
+results = processor.process_all(
+    on_job_progress=lambda job, pct: print(f"{job.id}: {pct}%")
+)
+```
+
+**7 profils de configuration predefinis :**
+
+| Profil | Style | Vitesse | Particularites |
+|--------|-------|---------|----------------|
+| `podcast` | conversational | 1.05x | -16 LUFS, decontracte |
+| `audiobook` | storytelling | 1.0x | Multi-voix, jingles chapitres |
+| `dramatic` | dramatic | 0.92x | Effets sonores, intense |
+| `fast` | conversational | 1.2x | Sans post-processing |
+| `documentary` | documentary | 0.95x | Neutre, informatif |
+| `intimate` | intimate | 0.9x | Proche, confidentiel |
+| `energetic` | energetic | 1.12x | Dynamique, enthousiaste |
+
+**Utilisation CLI :**
+```bash
+# Utiliser un profil
+python audio_reader.py livre.md --profile audiobook
+
+# Lister les profils
+python audio_reader.py --list-profiles
+
+# Batch processing depuis fichier
+python audio_reader.py --batch jobs.json
+```
+
+### 7. Export Multi-Plateformes
+
+**Export vers Spotify, YouTube, Podcast et ACX :**
+```python
+from src.platform_exporter import PlatformExporter, ExportMetadata
+
+exporter = PlatformExporter()
+metadata = ExportMetadata(
+    title="Mon Audiobook",
+    author="Auteur",
+    narrator="Kokoro TTS"
+)
+
+# Export Spotify (MP3 320kbps, -14 LUFS)
+result = exporter.export_for_spotify(audio_path, output_path, metadata)
+
+# Export YouTube (video avec waveform)
+result = exporter.export_for_youtube(audio_path, output_path, metadata)
+
+# Export Podcast (MP3 128kbps, -16 LUFS, mono)
+result = exporter.export_for_podcast(audio_path, output_path, metadata)
+
+# Export ACX/Audible (MP3 192kbps, conformite stricte)
+result = exporter.export_for_acx(audio_path, output_path, metadata)
+```
+
+**Exigences par plateforme :**
+
+| Plateforme | Format | Loudness | Particularites |
+|------------|--------|----------|----------------|
+| Spotify | MP3 320kbps | -14 LUFS | Stereo, artwork 3000x3000 |
+| YouTube | MP4 | - | Video avec waveform animee |
+| Podcast | MP3 128k | -16 LUFS | Mono, tags ID3 |
+| ACX/Audible | MP3 192k | -23 to -18 dB RMS | Peak max -3dB, noise floor < -60dB |
+
+### Modules v5.0
+
+| Module | Fichier | Description |
+|--------|---------|-------------|
+| Prenoms FR | `french_names.py` | ~1000 prenoms INSEE avec genre |
+| Config GPU | `gpu_config.py` | Configuration GPU unifiee |
+| TTS Async | `tts_async.py` | Interface streaming async |
+| Sound FX | `soundfx_engine.py` | Effets sonores proceduraux |
+| Batch | `batch_processor.py` | File d'attente avec priorites |
+| Profils | `config_profiles.py` | 7 profils predefinis |
+| Export | `platform_exporter.py` | Export multi-plateformes |
+| Streaming | `api/routers/streaming.py` | Endpoint SSE |
 
 ---
 
@@ -1091,15 +1323,19 @@ AudioReader/
 │       ├── analysis.py     # /api/v2/analyze
 │       ├── podcast.py      # /api/v2/podcast/*
 │       ├── projects.py     # /api/v2/projects/*
-│       └── openai_compat.py # /v1/audio/speech (OpenAI API)
+│       ├── openai_compat.py # /v1/audio/speech (OpenAI API)
+│       └── streaming.py    # /api/v2/streaming/* (SSE temps reel v5.0)
 │
-├── frontend/               # Interface React (v4.0)
+├── frontend/               # Interface React (v4.0 + v5.0)
 │   ├── src/
 │   │   ├── pages/          # DashboardPage, BookConversionPage, etc.
 │   │   ├── components/     # UI components (Button, Card, etc.)
+│   │   │   └── global/     # FloatingPlayer (v5.0)
 │   │   ├── stores/         # Zustand stores
+│   │   │   └── usePlaylistStore.ts  # Playlist avec queue (v5.0)
 │   │   ├── api/            # Client API + SSE
 │   │   └── hooks/          # React hooks
+│   │       └── useStreamingPlayback.ts  # Web Audio API (v5.0)
 │   ├── package.json
 │   └── vite.config.ts
 │
@@ -1183,6 +1419,15 @@ AudioReader/
 │   ├── llm_dialogue_attributor.py # Attribution dialogues LLM
 │   ├── smart_text_cleaner.py   # Nettoyage PDF intelligent
 │   ├── chapter_summarizer.py   # Resume chapitres (metadata M4B)
+│   │
+│   │   # --- MODULES v5.0 ---
+│   ├── french_names.py         # Dictionnaire prenoms francais (~1000)
+│   ├── gpu_config.py           # Configuration GPU unifiee (CUDA/MPS/CPU)
+│   ├── tts_async.py            # Interface TTS async/streaming
+│   ├── soundfx_engine.py       # Effets sonores proceduraux (12 effets)
+│   ├── batch_processor.py      # Traitement par lots avec priorites
+│   ├── config_profiles.py      # Profils de configuration (7 predefinis)
+│   ├── platform_exporter.py    # Export Spotify/YouTube/Podcast/ACX
 │   │
 │   │   # --- UTILITAIRES ---
 │   ├── preview_generator.py    # Apercu 30 secondes
@@ -1312,7 +1557,7 @@ Le modele Kokoro-82M est sous licence Apache 2.0.
 
 ---
 
-*AudioReader v4.0 - Plateforme complete avec interface moderne, nouveaux moteurs TTS et infrastructure Docker*
+*AudioReader v5.0 - Detection personnages amelioree, streaming temps reel, effets sonores et export multi-plateformes*
 
 ---
 
