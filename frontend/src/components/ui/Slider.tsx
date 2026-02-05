@@ -6,15 +6,18 @@ interface SliderProps {
   step?: number
   onChange: (val: number) => void
   unit?: string
+  displayValue?: (val: number) => string
 }
 
-export default function Slider({ label, value, min = 0, max = 100, step = 1, onChange, unit }: SliderProps) {
+export default function Slider({ label, value, min = 0, max = 100, step = 1, onChange, unit, displayValue }: SliderProps) {
+  const formattedValue = displayValue ? displayValue(value) : `${value}${unit || ''}`
+
   return (
     <div className="space-y-1.5">
       {label && (
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium text-secondary">{label}</label>
-          <span className="text-xs font-mono text-accent">{value}{unit}</span>
+          <span className="text-xs font-mono text-accent">{formattedValue}</span>
         </div>
       )}
       <input

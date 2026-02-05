@@ -350,3 +350,61 @@ class TestLLMProviders:
         actual = [p.value for p in LLMProvider]
         for provider in expected:
             assert provider in actual, f"Missing provider: {provider}"
+
+
+class TestCharacterDetectorIntegration:
+    """Tests pour l'intégration avec CharacterDetector."""
+
+    def test_character_detector_with_llm_enhancer(self):
+        """Test du CharacterDetector avec LLMEnhancer."""
+        from src.character_detector import CharacterDetector
+
+        # Créer un enhancer avec fallback heuristique
+        enhancer = LLMEnhancer(LLMConfig(fallback_to_heuristics=True))
+        detector = CharacterDetector(lang="fr", llm_enhancer=enhancer)
+
+        text = """
+        « Bonjour », dit Marie.
+        « Comment vas-tu ? » répondit Pierre.
+        Il a coupé court à la discussion.
+        """
+
+        segments = detector.detect_dialogue_segments(text)
+        characters = detector.get_characters()
+
+        # Marie et Pierre doivent être détectés
+        char_names = [c.name for c in characters]
+        assert "Marie" in char_names or "Pierre" in char_names
+
+        # "coupé" ne doit PAS être un personnage
+        assert "coupé" not in char_names
+        assert "Coupé" not in char_names
+
+    def test_validate_with_llm_fallback(self):
+        """Test du fallback heuristique quand LLM non disponible."""
+        from src.character_detector import CharacterDetector
+
+        # Sans LLM enhancer
+        detector = CharacterDetector(lang="fr", llm_enhancer=None)
+
+        # _validate_with_llm doit retourner None sans enhancer
+        result = detector._validate_with_llm("Marie", "dit Marie")
+        assert result is None
+
+    def test_confidence_scoring_with_names(self):
+        """Test du scoring de confiance pour les prénoms."""
+        from src.character_detector import CharacterDetector
+
+        detector = CharacterDetector(lang="fr")
+
+        # Prénom français connu = haute confiance
+        conf_marie = detector._calculate_name_confidence("Marie", "dit Marie")
+        assert conf_marie >= 0.5
+
+        # Stop word = confiance nulle
+        conf_pas = detector._calculate_name_confidence("pas", "dit pas")
+        assert conf_pas == 0.0
+
+        # Mot inconnu = confiance basse
+        conf_xyz = detector._calculate_name_confidence("xyz", "dit xyz")
+        assert conf_xyz < 0.5

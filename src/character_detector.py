@@ -21,7 +21,7 @@ from src.french_names import (
 )
 
 if TYPE_CHECKING:
-    from src.llm_emotion_detector import LLMEmotionDetector
+    from src.llm_enhancer import LLMEnhancer
 
 
 class SpeakerType(Enum):
@@ -221,17 +221,17 @@ class CharacterDetector:
         self,
         lang: str = "fr",
         min_confidence: float = 0.4,
-        llm_detector: Optional["LLMEmotionDetector"] = None,
+        llm_enhancer: Optional["LLMEnhancer"] = None,
     ):
         """
         Args:
             lang: Code langue ("fr" ou "en")
             min_confidence: Confiance minimale pour accepter un personnage (0.0-1.0)
-            llm_detector: Détecteur LLM optionnel pour validation des cas ambigus
+            llm_enhancer: LLMEnhancer optionnel pour validation des cas ambigus (v5.0)
         """
         self.lang = lang
         self.min_confidence = min_confidence
-        self.llm_detector = llm_detector
+        self.llm_enhancer = llm_enhancer
         self.characters: dict[str, Character] = {}
         self.speech_verbs = (
             self.SPEECH_VERBS_FR if lang == "fr" else self.SPEECH_VERBS_EN
@@ -386,22 +386,33 @@ class CharacterDetector:
             context: Le contexte textuel
 
         Returns:
-            Score de confiance ajusté, ou None si LLM indisponible
+            Score de confiance ajusté (0.0-1.0), ou None si LLM indisponible
         """
-        if not self.llm_detector:
+        if not self.llm_enhancer:
             return None
 
         try:
-            # Utiliser le LLM pour valider
-            prompt = f"Le mot '{name}' dans ce contexte est-il un prénom de personnage ?"
-            result = self.llm_detector.detect_emotion(
-                text=context[:200],  # Limiter le contexte
-                context=f"Analyse: est-ce que '{name}' est un prénom de personnage ?"
+            # Récupérer les personnages déjà détectés
+            existing_characters = [c.name for c in self.characters.values()]
+
+            # Utiliser LLMEnhancer.validate_character_name()
+            result = self.llm_enhancer.validate_character_name(
+                name=name,
+                context=context[:500],  # Limiter le contexte
+                existing_characters=existing_characters,
             )
-            # Interpréter la réponse (heuristique basée sur le résultat)
-            # Le LLM emotion detector n'est pas idéal pour ça, mais peut aider
-            return None  # Pour l'instant, pas de validation LLM implémentée
-        except Exception:
+
+            # Si le LLM dit que ce n'est pas un personnage, retourner confiance 0
+            if not result.is_character:
+                return 0.0
+
+            # Sinon retourner la confiance du LLM
+            return result.confidence
+
+        except Exception as e:
+            # Log l'erreur mais continue silencieusement
+            import sys
+            print(f"[CharacterDetector] Erreur validation LLM: {e}", file=sys.stderr)
             return None
 
     def _extract_speaker_name(self, text: str, full_context: str = "") -> tuple[Optional[str], float]:

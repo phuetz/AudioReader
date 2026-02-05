@@ -35,6 +35,14 @@ class OutputFormat(str, Enum):
     m4b = "m4b"
 
 
+class LLMProvider(str, Enum):
+    """Providers LLM pour l'amélioration du texte."""
+    ollama = "ollama"
+    openai = "openai"
+    anthropic = "anthropic"
+    gemini = "gemini"
+
+
 # ── Voix ─────────────────────────────────────────────────────────────────────
 
 class VoiceInfo(BaseModel):
@@ -81,6 +89,28 @@ class AudiobookRequest(BaseModel):
     output_format: OutputFormat = OutputFormat.wav
     enable_mastering: bool = False
     character_voices: Optional[Dict[str, str]] = None  # {personnage: voice_id}
+
+    # v5.0: LLM Enhancement
+    enable_llm_enhance: bool = False
+    llm_provider: LLMProvider = LLMProvider.ollama
+    llm_model: Optional[str] = None  # Auto-select if None
+
+    # v5.0: Sound Effects
+    enable_sound_effects: bool = False
+    sound_effects_intensity: float = Field(default=0.3, ge=0.0, le=1.0)
+
+    # v5.0: Advanced Options
+    enable_subtitles: bool = False
+    subtitle_format: str = "srt"  # srt, vtt, json
+
+    # v5.0: Timing & Prosody
+    enable_timing_humanization: bool = True
+    pause_variation: float = Field(default=0.15, ge=0.0, le=0.5)  # 15% variation
+    enable_intonation_contours: bool = True
+
+    # v5.0: ACX Compliance
+    enable_acx_compliance: bool = False
+    acx_target_lufs: float = Field(default=-19.0, ge=-24.0, le=-14.0)
 
 
 class PreviewRequest(BaseModel):

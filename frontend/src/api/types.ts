@@ -111,3 +111,57 @@ export interface ConfigResponse {
 }
 
 export type NarrationStyle = 'formal' | 'conversational' | 'dramatic' | 'storytelling' | 'documentary' | 'intimate' | 'energetic'
+
+export type LLMProvider = 'ollama' | 'openai' | 'anthropic' | 'gemini'
+
+export type SubtitleFormat = 'srt' | 'vtt' | 'json'
+
+export interface CorrectionRule {
+  id: string
+  pattern: string
+  replacement: string
+  confidence: 'high' | 'medium' | 'low'
+  notes: string
+}
+
+export interface CorrectionsList {
+  corrections: CorrectionRule[]
+  total: number
+}
+
+/** Extended audiobook generation options (v5.0) */
+export interface AudiobookOptions {
+  // Basic
+  text?: string
+  file_id?: string
+  title?: string
+  narrator_voice?: string
+  style?: NarrationStyle
+  enable_emotions?: boolean
+  enable_multi_voice?: boolean
+  language?: string
+  enable_mastering?: boolean
+  character_voices?: Record<string, string>
+
+  // LLM Enhancement
+  enable_llm_enhance?: boolean
+  llm_provider?: LLMProvider
+  llm_model?: string
+
+  // Sound Effects
+  enable_sound_effects?: boolean
+  sound_effects_intensity?: number
+
+  // Subtitles
+  enable_subtitles?: boolean
+  subtitle_format?: SubtitleFormat
+
+  // Timing & Prosody
+  enable_timing_humanization?: boolean
+  pause_variation?: number
+  enable_intonation_contours?: boolean
+
+  // ACX Compliance
+  enable_acx_compliance?: boolean
+  acx_target_lufs?: number
+}

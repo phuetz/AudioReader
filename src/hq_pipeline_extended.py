@@ -538,6 +538,14 @@ class ExtendedHQPipeline:
                 if not self.llm_enhancer.is_available():
                     print(f"[LLM Enhancer] Provider '{self.config.llm_enhancer_provider}' "
                           f"non disponible, fallback vers heuristiques")
+
+                # v5.0: Pass LLM enhancer to base pipeline's character detector
+                # for inline validation during character detection
+                if (self.llm_enhancer and
+                    self.config.llm_validate_characters and
+                    hasattr(self.base_pipeline, 'character_detector')):
+                    self.base_pipeline.character_detector.llm_enhancer = self.llm_enhancer
+
             except Exception as e:
                 print(f"[LLM Enhancer] Erreur d'initialisation: {e}")
                 self.llm_enhancer = None

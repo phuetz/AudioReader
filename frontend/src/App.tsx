@@ -8,6 +8,9 @@ const QuickTextPage = lazy(() => import('./pages/QuickTextPage'))
 const BookConversionPage = lazy(() => import('./pages/BookConversionPage'))
 const CharactersPage = lazy(() => import('./pages/CharactersPage'))
 const VoiceCloningPage = lazy(() => import('./pages/VoiceCloningPage'))
+const ACXAnalysisPage = lazy(() => import('./pages/ACXAnalysisPage'))
+const CorrectionsPage = lazy(() => import('./pages/CorrectionsPage'))
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage'))
 const PodcastPage = lazy(() => import('./pages/PodcastPage'))
 const FilesPage = lazy(() => import('./pages/FilesPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
@@ -30,6 +33,9 @@ export default function App() {
           <Route path="/book" element={<BookConversionPage />} />
           <Route path="/characters" element={<CharactersPage />} />
           <Route path="/cloning" element={<VoiceCloningPage />} />
+          <Route path="/acx" element={<ACXAnalysisPage />} />
+          <Route path="/corrections" element={<CorrectionsPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/podcast" element={<PodcastPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/settings" element={<SettingsPage />} />

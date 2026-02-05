@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Users, Search } from 'lucide-react'
+import { Users, Search, Sparkles } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
+import Toggle from '../components/ui/Toggle'
+import Select from '../components/ui/Select'
 import CharacterTable from '../components/characters/CharacterTable'
 import { ToastContainer, toast } from '../components/ui/Toast'
 import { useCharacterStore } from '../stores/useCharacterStore'
 import { useVoiceStore } from '../stores/useVoiceStore'
+import { useSettingsStore } from '../stores/useSettingsStore'
 import { analyzeText } from '../api/endpoints'
-import type { AnalysisResult } from '../api/types'
+import type { AnalysisResult, LLMProvider } from '../api/types'
 
 export default function CharactersPage() {
   const [text, setText] = useState('')
@@ -15,6 +18,11 @@ export default function CharactersPage() {
   const [loading, setLoading] = useState(false)
   const { setCharacters } = useCharacterStore()
   const { fetchVoices } = useVoiceStore()
+  const settings = useSettingsStore()
+
+  // LLM options
+  const [useLLM, setUseLLM] = useState(settings.enableLLMEnhance)
+  const [llmProvider, setLLMProvider] = useState<LLMProvider>(settings.llmProvider)
 
   useEffect(() => { fetchVoices() }, [fetchVoices])
 
@@ -22,10 +30,13 @@ export default function CharactersPage() {
     if (!text.trim()) { toast.error('Entrez du texte à analyser'); return }
     setLoading(true)
     try {
-      const result = await analyzeText({ text, language: 'fr' })
+      const result = await analyzeText({ text, language: settings.language })
       setAnalysis(result)
       setCharacters(result.characters)
-      toast.success(`${result.characters.length} personnages détectés`)
+      const msg = useLLM
+        ? `${result.characters.length} personnages détectés (validation LLM activée)`
+        : `${result.characters.length} personnages détectés`
+      toast.success(msg)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erreur analyse')
     } finally {
@@ -40,19 +51,50 @@ export default function CharactersPage() {
         Personnages
       </h1>
 
-      <Card title="Texte à analyser">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Collez un extrait de votre livre avec des dialogues..."
-          rows={8}
-          className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-primary text-sm
-            placeholder:text-muted focus:border-accent resize-y"
-        />
-        <Button onClick={handleAnalyze} loading={loading} icon={<Search className="w-4 h-4" />} className="mt-3">
-          Détecter les personnages
-        </Button>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card title="Texte à analyser">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Collez un extrait de votre livre avec des dialogues..."
+              rows={8}
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-primary text-sm
+                placeholder:text-muted focus:border-accent resize-y"
+            />
+            <Button onClick={handleAnalyze} loading={loading} icon={<Search className="w-4 h-4" />} className="mt-3">
+              Détecter les personnages
+            </Button>
+          </Card>
+        </div>
+
+        {/* Options */}
+        <div>
+          <Card title="Options" icon={<Sparkles className="w-4 h-4" />}>
+            <div className="space-y-4">
+              <Toggle label="Validation LLM" checked={useLLM} onChange={setUseLLM}
+                description="Utilise un LLM pour filtrer les faux positifs" />
+              {useLLM && (
+                <Select
+                  label="Provider"
+                  value={llmProvider}
+                  onChange={(e) => setLLMProvider(e.target.value as LLMProvider)}
+                  options={[
+                    { value: 'ollama', label: 'Ollama (local)' },
+                    { value: 'gemini', label: 'Gemini 2.5 Flash' },
+                    { value: 'openai', label: 'OpenAI' },
+                    { value: 'anthropic', label: 'Anthropic' },
+                  ]}
+                />
+              )}
+              <p className="text-xs text-muted">
+                La validation LLM filtre les mots incorrectement identifiés comme personnages
+                (ex: "coupé", "pointé").
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
 
       {analysis && (
         <>

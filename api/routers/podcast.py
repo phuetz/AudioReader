@@ -85,10 +85,19 @@ async def podcast_status():
         return PodcastStatusResponse(running=False)
 
     episode_count = 0
+    qr_code_url = None
     try:
         if hasattr(_podcast_server, 'audio_dir'):
             audio_dir = Path(_podcast_server.audio_dir)
             episode_count = len(list(audio_dir.glob("*.wav"))) + len(list(audio_dir.glob("*.mp3")))
+        # Get QR code if available
+        if hasattr(_podcast_server, 'get_qr_code'):
+            qr_html = _podcast_server.get_qr_code()
+            # Extract base64 data from HTML img tag
+            import re
+            match = re.search(r'data:image/png;base64,([^"]+)', qr_html)
+            if match:
+                qr_code_url = f"data:image/png;base64,{match.group(1)}"
     except Exception:
         pass
 
@@ -104,5 +113,32 @@ async def podcast_status():
         running=True,
         url=url,
         port=_podcast_server.port,
+        qr_code_url=qr_code_url,
         episode_count=episode_count,
     )
+
+
+@router.get("/podcast/episodes")
+async def podcast_episodes():
+    """Liste les épisodes disponibles pour le podcast."""
+    if _podcast_server is None:
+        return {"episodes": [], "total": 0}
+
+    episodes = []
+    try:
+        if hasattr(_podcast_server, 'audio_dir'):
+            audio_dir = Path(_podcast_server.audio_dir)
+            for ext in ["*.wav", "*.mp3", "*.m4a", "*.m4b"]:
+                for f in audio_dir.glob(ext):
+                    stat = f.stat()
+                    episodes.append({
+                        "name": f.name,
+                        "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                        "modified": stat.st_mtime,
+                    })
+            # Sort by modification time, newest first
+            episodes.sort(key=lambda e: e["modified"], reverse=True)
+    except Exception:
+        pass
+
+    return {"episodes": episodes, "total": len(episodes)}

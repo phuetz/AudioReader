@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Type, BookOpen, Users, Mic, Radio,
+  LayoutDashboard, Type, BookOpen, Users, Mic, Shield, BookA, FolderKanban, Radio,
   FolderOpen, Settings, ChevronLeft, ChevronRight, Headphones,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -11,6 +11,9 @@ const NAV_ITEMS = [
   { to: '/book', icon: BookOpen, label: 'Livre' },
   { to: '/characters', icon: Users, label: 'Personnages' },
   { to: '/cloning', icon: Mic, label: 'Clonage' },
+  { to: '/acx', icon: Shield, label: 'ACX' },
+  { to: '/corrections', icon: BookA, label: 'Corrections' },
+  { to: '/projects', icon: FolderKanban, label: 'Projets' },
   { to: '/podcast', icon: Radio, label: 'Podcast' },
   { to: '/files', icon: FolderOpen, label: 'Fichiers' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },

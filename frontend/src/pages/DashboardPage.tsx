@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Type, BookOpen, Mic, FolderOpen, Headphones } from 'lucide-react'
+import { Type, BookOpen, Mic, FolderOpen, FolderKanban, Headphones, Shield, Users, Radio } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { getHealth, getFiles, getJobs } from '../api/endpoints'
@@ -23,7 +23,11 @@ export default function DashboardPage() {
   const quickActions = [
     { icon: Type, label: 'Texte rapide', desc: 'Convertir du texte en audio', to: '/text' },
     { icon: BookOpen, label: 'Livre', desc: 'Convertir un livre complet', to: '/book' },
+    { icon: Users, label: 'Personnages', desc: 'Détecter et assigner les voix', to: '/characters' },
     { icon: Mic, label: 'Cloner une voix', desc: 'Depuis un fichier audio/vidéo', to: '/cloning' },
+    { icon: Shield, label: 'Analyse ACX', desc: 'Vérifier la conformité Audible', to: '/acx' },
+    { icon: FolderKanban, label: 'Projets', desc: 'Organiser vos audiobooks', to: '/projects' },
+    { icon: Radio, label: 'Podcast', desc: 'Serveur RSS local', to: '/podcast' },
     { icon: FolderOpen, label: 'Fichiers', desc: 'Parcourir les fichiers générés', to: '/files' },
   ]
 

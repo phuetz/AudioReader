@@ -1,12 +1,14 @@
 import apiClient from './client'
 import type {
   AnalysisResult,
+  AudiobookOptions,
   ConfigResponse,
+  CorrectionRule,
+  CorrectionsList,
   FileInfo,
   HealthResponse,
   JobCreatedResponse,
   JobResponse,
-  NarrationStyle,
   PodcastStatus,
   ProjectInfo,
   UploadResponse,
@@ -54,11 +56,7 @@ export const generateAudio = (params: {
 }) =>
   apiClient.post<JobCreatedResponse>(`${V2}/generate`, params).then(r => r.data)
 
-export const generateAudiobook = (params: {
-  text?: string; file_id?: string; title?: string; narrator_voice?: string;
-  style?: NarrationStyle; enable_emotions?: boolean; enable_multi_voice?: boolean;
-  language?: string; enable_mastering?: boolean; character_voices?: Record<string, string>
-}) =>
+export const generateAudiobook = (params: AudiobookOptions) =>
   apiClient.post<JobCreatedResponse>(`${V2}/audiobook`, params).then(r => r.data)
 
 export const generatePreview = (params: {
@@ -117,3 +115,27 @@ export const stopPodcast = () =>
 
 export const getPodcastStatus = () =>
   apiClient.get<PodcastStatus>(`${V2}/podcast/status`).then(r => r.data)
+
+// ── Corrections ──────────────────────────────────────────────────────────────
+
+export const getCorrections = (search?: string) =>
+  apiClient.get<CorrectionsList>(`${V2}/corrections`, { params: { search } }).then(r => r.data)
+
+export const createCorrection = (params: {
+  pattern: string; replacement: string; confidence?: string; notes?: string
+}) =>
+  apiClient.post<CorrectionRule>(`${V2}/corrections`, params).then(r => r.data)
+
+export const updateCorrection = (id: string, params: {
+  pattern?: string; replacement?: string; confidence?: string; notes?: string
+}) =>
+  apiClient.put<CorrectionRule>(`${V2}/corrections/${id}`, params).then(r => r.data)
+
+export const deleteCorrection = (id: string) =>
+  apiClient.delete(`${V2}/corrections/${id}`).then(r => r.data)
+
+export const applyCorrections = (text: string, confidenceLevels?: string[]) =>
+  apiClient.post<{ original: string; corrected: string; changes_count: number }>(
+    `${V2}/corrections/apply`,
+    { text, confidence_levels: confidenceLevels || ['high', 'medium'] }
+  ).then(r => r.data)

@@ -98,9 +98,21 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
                 enable_emotion_analysis=request.enable_emotions,
                 auto_assign_voices=request.enable_multi_voice,
                 default_narration_style=request.style.value,
-                enable_intonation_contours=True,
-                enable_timing_humanization=True,
+                enable_intonation_contours=request.enable_intonation_contours,
+                enable_timing_humanization=request.enable_timing_humanization,
                 enable_advanced_breaths=True,
+                # v5.0: LLM Enhancement
+                enable_llm_enhancer=request.enable_llm_enhance,
+                llm_enhancer_provider=request.llm_provider.value,
+                llm_enhancer_model=request.llm_model or "",
+                # v5.0: Sound Effects
+                enable_sound_effects=request.enable_sound_effects,
+                sound_effects_intensity=request.sound_effects_intensity,
+                # v5.0: Timing
+                pause_variation_sigma=request.pause_variation,
+                # v5.0: ACX Compliance
+                enable_acx_compliance=request.enable_acx_compliance,
+                acx_target_lufs=request.acx_target_lufs,
             )
             job_store.update(job_id, progress=15, phase="text_analysis")
 
