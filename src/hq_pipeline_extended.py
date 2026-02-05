@@ -124,6 +124,16 @@ from .soundfx_engine import (
     apply_sound_effects_to_audio,
 )
 
+# v5.0: LLM Enhancer (unified pipeline)
+from .llm_enhancer import (
+    LLMEnhancer,
+    LLMConfig as LLMEnhancerConfig,
+    LLMProvider,
+    EmotionType as LLMEmotionType,
+    NarrativeContext,
+    create_enhancer,
+)
+
 
 @dataclass
 class ExtendedPipelineConfig(HQPipelineConfig):
@@ -203,6 +213,16 @@ class ExtendedPipelineConfig(HQPipelineConfig):
     sound_effects_intensity: float = 0.3  # 0.0-1.0
     chapter_jingle: Optional[str] = None  # 'chapter_start', 'chapter_end', etc.
 
+    # v5.0: LLM Enhancer (unified pipeline)
+    enable_llm_enhancer: bool = False  # Master switch for LLM enhancements
+    llm_enhancer_provider: str = "ollama"  # ollama, openai, anthropic, gemini
+    llm_enhancer_model: str = ""  # Auto-select if empty
+    llm_enhancer_api_key: Optional[str] = None  # For cloud providers
+    llm_auto_tags: bool = True  # Auto-insert audio tags via LLM
+    llm_validate_characters: bool = True  # Validate character names via LLM
+    llm_contextual_emotion: bool = True  # Use LLM for emotion analysis
+    llm_prosody_suggestions: bool = True  # Get prosody hints from LLM
+
     def save(self, path: Path):
         """Sauvegarde la configuration etendue."""
         data = {
@@ -255,6 +275,14 @@ class ExtendedPipelineConfig(HQPipelineConfig):
             "enable_sound_effects": self.enable_sound_effects,
             "sound_effects_intensity": self.sound_effects_intensity,
             "chapter_jingle": self.chapter_jingle,
+            # v5.0: LLM Enhancer
+            "enable_llm_enhancer": self.enable_llm_enhancer,
+            "llm_enhancer_provider": self.llm_enhancer_provider,
+            "llm_enhancer_model": self.llm_enhancer_model,
+            "llm_auto_tags": self.llm_auto_tags,
+            "llm_validate_characters": self.llm_validate_characters,
+            "llm_contextual_emotion": self.llm_contextual_emotion,
+            "llm_prosody_suggestions": self.llm_prosody_suggestions,
         }
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -497,6 +525,25 @@ class ExtendedHQPipeline:
         else:
             self.soundfx_engine = None
 
+        # v5.0: LLM Enhancer (unified pipeline)
+        if self.config.enable_llm_enhancer:
+            try:
+                self.llm_enhancer = create_enhancer(
+                    provider=self.config.llm_enhancer_provider,
+                    model=self.config.llm_enhancer_model or None,
+                    api_key=self.config.llm_enhancer_api_key,
+                    fallback_to_heuristics=True,
+                )
+                # Check if LLM is available
+                if not self.llm_enhancer.is_available():
+                    print(f"[LLM Enhancer] Provider '{self.config.llm_enhancer_provider}' "
+                          f"non disponible, fallback vers heuristiques")
+            except Exception as e:
+                print(f"[LLM Enhancer] Erreur d'initialisation: {e}")
+                self.llm_enhancer = None
+        else:
+            self.llm_enhancer = None
+
     def _apply_sound_effects(
         self,
         audio: np.ndarray,
@@ -587,6 +634,16 @@ class ExtendedHQPipeline:
 
     def _process_audio_tags(self, text: str) -> ProcessedSegment:
         """Traite les audio tags dans le texte."""
+        # v5.0: Auto-insert tags via LLM if enabled
+        if (self.llm_enhancer and
+            self.config.llm_auto_tags and
+            self.llm_enhancer.is_available()):
+            try:
+                text = self.llm_enhancer.auto_insert_audio_tags(text)
+            except Exception as e:
+                # Fallback silencieux
+                pass
+
         return process_text_with_audio_tags(text)
 
     def _get_morph_settings(self, speaker: str) -> Optional[VoiceMorphSettings]:
@@ -624,6 +681,80 @@ class ExtendedHQPipeline:
             base_volume=base_prosody.get("volume", 1.0),
             emotion_type=emotion_type
         )
+
+    def _enhance_with_llm(
+        self,
+        text: str,
+        previous_emotions: Optional[list] = None
+    ) -> dict:
+        """
+        Améliore un segment avec le LLM Enhancer (v5.0).
+
+        Returns:
+            Dict avec emotion, prosody, narrative_context
+        """
+        result = {
+            "emotion": None,
+            "emotion_intensity": 0.5,
+            "narrative_context": None,
+            "prosody": None,
+        }
+
+        if not self.llm_enhancer or not self.llm_enhancer.is_available():
+            return result
+
+        try:
+            # Analyse émotionnelle contextuelle
+            if self.config.llm_contextual_emotion:
+                # Convert previous emotions to LLMEmotionType if provided
+                prev_emotions = None
+                if previous_emotions:
+                    prev_emotions = []
+                    for e in previous_emotions[-3:]:  # Last 3 emotions
+                        try:
+                            prev_emotions.append(LLMEmotionType(e))
+                        except (ValueError, KeyError):
+                            pass
+
+                emotion_result = self.llm_enhancer.analyze_emotion_contextual(
+                    text,
+                    previous_emotions=prev_emotions
+                )
+                result["emotion"] = emotion_result.primary_emotion.value
+                result["emotion_intensity"] = emotion_result.intensity
+
+            # Contexte narratif
+            context, confidence = self.llm_enhancer.detect_narrative_context(text)
+            result["narrative_context"] = context.value
+
+            # Suggestions de prosodie
+            if self.config.llm_prosody_suggestions:
+                emotion_type = None
+                if result["emotion"]:
+                    try:
+                        emotion_type = LLMEmotionType(result["emotion"])
+                    except (ValueError, KeyError):
+                        pass
+
+                prosody_hints = self.llm_enhancer.suggest_prosody(
+                    text,
+                    emotion=emotion_type,
+                    context=context
+                )
+                result["prosody"] = {
+                    "speed": prosody_hints.speed,
+                    "pitch": prosody_hints.pitch,
+                    "volume": prosody_hints.volume,
+                    "pause_before": prosody_hints.pause_before,
+                    "pause_after": prosody_hints.pause_after,
+                    "emphasis_words": prosody_hints.emphasis_words,
+                }
+
+        except Exception as e:
+            # Fallback silencieux
+            pass
+
+        return result
 
     def process_chapter(
         self,
@@ -703,6 +834,28 @@ class ExtendedHQPipeline:
 
             # Combiner avec les tags globaux
             all_tags = global_tags + seg_tags
+
+            # v5.0: LLM Enhancement
+            llm_enhancement = None
+            if self.config.enable_llm_enhancer and self.llm_enhancer:
+                # Collect previous emotions for context
+                prev_emotions = [
+                    seg.emotion.value if hasattr(seg, 'emotion') and seg.emotion else 'neutral'
+                    for seg in extended_segments[-3:]
+                ] if extended_segments else None
+
+                llm_enhancement = self._enhance_with_llm(clean_text, prev_emotions)
+
+                # Apply LLM prosody suggestions if available
+                if llm_enhancement.get("prosody"):
+                    llm_prosody = llm_enhancement["prosody"]
+                    # Merge with tag prosody (LLM suggestions have lower priority)
+                    if "speed" in llm_prosody and "speed" not in tag_prosody:
+                        tag_prosody["speed"] = llm_prosody["speed"]
+                    if "pitch" in llm_prosody and "pitch" not in tag_prosody:
+                        tag_prosody["pitch"] = llm_prosody["pitch"]
+                    if "volume" in llm_prosody and "volume" not in tag_prosody:
+                        tag_prosody["volume"] = llm_prosody["volume"]
 
             # Calculer la prosodie emotionnelle
             emotion_prosody = self._calculate_emotion_prosody(
@@ -955,8 +1108,40 @@ class ExtendedHQPipeline:
         return stats
 
     def get_characters(self) -> list:
-        """Retourne les personnages detectes."""
-        return self.base_pipeline.get_characters()
+        """Retourne les personnages detectes, filtres par LLM si active."""
+        characters = self.base_pipeline.get_characters()
+
+        # v5.0: Validate characters via LLM
+        if (self.llm_enhancer and
+            self.config.llm_validate_characters and
+            self.llm_enhancer.is_available()):
+            validated = []
+            for char in characters:
+                # Get character name (handle dict or object)
+                name = char.get("name", char) if isinstance(char, dict) else getattr(char, "name", str(char))
+
+                # Skip narrator
+                if name.upper() in ["NARRATEUR", "NARRATOR"]:
+                    validated.append(char)
+                    continue
+
+                # Validate via LLM
+                try:
+                    result = self.llm_enhancer.validate_character_name(
+                        name,
+                        context=f"Personnage dans un livre",
+                        existing_characters=[c.get("name", c) if isinstance(c, dict) else getattr(c, "name", str(c)) for c in validated]
+                    )
+                    if result.is_character and result.confidence >= 0.5:
+                        validated.append(char)
+                    else:
+                        print(f"[LLM] Faux positif filtre: '{name}' (confiance={result.confidence:.2f})")
+                except Exception:
+                    # En cas d'erreur, garder le personnage
+                    validated.append(char)
+            return validated
+
+        return characters
 
     def get_voice_assignments(self) -> dict:
         """Retourne les assignations de voix."""

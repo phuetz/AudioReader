@@ -337,6 +337,9 @@ def convert_book(
     ambiance: str = None,
     chapter_jingle: str = None,
     subtitles: str = None,
+    llm_enhance: bool = False,
+    llm_provider: str = "ollama",
+    llm_model: str = "",
 ):
     """Convertit un livre Markdown en fichiers audio."""
 
@@ -411,12 +414,14 @@ def convert_book(
     print(f"  Langue: {language}")
 
     if hq and HAS_HQ:
-        print(f"  Moteur: Pipeline HQ etendu (v4.0)")
+        print(f"  Moteur: Pipeline HQ etendu (v5.0)")
         print(f"  Style: {style}")
         print(f"  Multi-voix: {'Oui' if multivoice else 'Non'}")
         print(f"  Mastering: {'Oui' if master else 'Non'}")
         if clone_path:
             print(f"  Clonage: {clone_path}")
+        if llm_enhance:
+            print(f"  LLM Enhancer: {llm_provider} ({llm_model or 'auto'})")
 
         config = ExtendedPipelineConfig(
             lang=language,
@@ -427,7 +432,11 @@ def convert_book(
             enable_acx_compliance=master,
             enable_audio_enhancement=master,
             enable_cache=use_cache,
-            enable_voice_cloning=bool(clone_path)
+            enable_voice_cloning=bool(clone_path),
+            # v5.0: LLM Enhancer
+            enable_llm_enhancer=llm_enhance,
+            llm_enhancer_provider=llm_provider,
+            llm_enhancer_model=llm_model,
         )
         pipeline = ExtendedHQPipeline(config)
 
@@ -717,6 +726,30 @@ Moteurs TTS (tous gratuits):
         help="Afficher les profils disponibles"
     )
 
+    # --- v5.0 LLM Enhancer ---
+    llm_group = parser.add_argument_group("v5.0 LLM Enhancer")
+
+    llm_group.add_argument(
+        "--llm-enhance",
+        action="store_true",
+        help="Activer le pipeline LLM unifie (auto-tags, validation personnages, prosodie)"
+    )
+
+    llm_group.add_argument(
+        "--llm-provider",
+        type=str,
+        choices=["ollama", "openai", "anthropic", "gemini"],
+        default="ollama",
+        help="Provider LLM (defaut: ollama)"
+    )
+
+    llm_group.add_argument(
+        "--llm-model",
+        type=str,
+        default="",
+        help="Modele LLM (auto-detect si vide). Ex: llama3.2, gpt-4o-mini, gemini-2.5-flash-preview-05-20"
+    )
+
     # --- Utility Options ---
     parser.add_argument(
         "--list-voices",
@@ -901,6 +934,9 @@ Moteurs TTS (tous gratuits):
         ambiance=args.ambiance,
         chapter_jingle=args.chapter_jingle,
         subtitles=args.subtitles,
+        llm_enhance=args.llm_enhance,
+        llm_provider=args.llm_provider,
+        llm_model=args.llm_model,
     )
 
     return 0 if success else 1
