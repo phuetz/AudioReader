@@ -544,7 +544,7 @@ def convert_book(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="AudioReader v4.0 - Convertit un livre Markdown en fichiers audio.",
+        description="AudioReader v5.0 - Convertit un livre Markdown en fichiers audio.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples:
@@ -689,6 +689,34 @@ Moteurs TTS (tous gratuits):
         help="Desactive le cache de synthese"
     )
 
+    hq_group.add_argument(
+        "--sound-effects",
+        action="store_true",
+        help="Ajouter des effets sonores contextuels (v5.0)"
+    )
+
+    # --- v5.0 Profiles & Batch ---
+    v5_group = parser.add_argument_group("v5.0 Profiles & Batch")
+
+    v5_group.add_argument(
+        "--profile",
+        type=str,
+        choices=["podcast", "audiobook", "dramatic", "fast", "documentary", "intimate", "energetic"],
+        help="Profil de configuration predefini (v5.0)"
+    )
+
+    v5_group.add_argument(
+        "--batch",
+        type=Path,
+        help="Fichier JSON/TOML avec liste de livres a convertir (v5.0)"
+    )
+
+    v5_group.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="Afficher les profils disponibles"
+    )
+
     # --- Utility Options ---
     parser.add_argument(
         "--list-voices",
@@ -737,6 +765,67 @@ Moteurs TTS (tous gratuits):
         print_voices()
         return 0
 
+    # Afficher les profils (v5.0)
+    if args.list_profiles:
+        from src.config_profiles import BUILTIN_PROFILES
+        print("\n=== Profils de configuration disponibles ===\n")
+        for name, profile in BUILTIN_PROFILES.items():
+            print(f"  {name:15} - {profile.description}")
+            print(f"                   Style: {profile.style}, HQ: {profile.hq}, Vitesse: {profile.speed}")
+        return 0
+
+    # Traitement batch (v5.0)
+    if args.batch:
+        from src.batch_processor import BatchProcessor, load_batch_from_file
+        from src.config_profiles import load_profile
+
+        print(f"\n=== Mode Batch: {args.batch} ===\n")
+
+        # Charger la liste des jobs
+        try:
+            job_list = load_batch_from_file(args.batch)
+        except Exception as e:
+            print(f"Erreur chargement batch: {e}")
+            return 1
+
+        # Appliquer le profil si specifie
+        base_config = {}
+        if args.profile:
+            profile_config = load_profile(args.profile)
+            if profile_config:
+                base_config = profile_config
+                print(f"Profil applique: {args.profile}")
+
+        # Fusionner le profil dans chaque job
+        for job in job_list:
+            job_config = job.get("config", {})
+            job["config"] = {**base_config, **job_config}
+
+        processor = BatchProcessor(max_concurrent=2)
+        jobs = processor.add_jobs_from_list(job_list)
+        print(f"{len(jobs)} jobs ajoutes a la file")
+
+        def on_start(job):
+            print(f"\n[START] {job.book_path.name}")
+
+        def on_complete(job):
+            print(f"[DONE]  {job.book_path.name} -> {job.output_dir}")
+
+        def on_error(job, error):
+            print(f"[ERROR] {job.book_path.name}: {error}")
+
+        results = processor.process_all(
+            on_job_start=on_start,
+            on_job_complete=on_complete,
+            on_job_error=on_error,
+        )
+
+        print(f"\n=== Resultats ===")
+        print(f"  Traites: {results['processed']}")
+        print(f"  Succes:  {results['success']}")
+        print(f"  Erreurs: {results['failed']}")
+        return 0 if results['failed'] == 0 else 1
+
     # Verifier le fichier d'entree
     if not args.input_file:
         parser.print_help()
@@ -757,6 +846,30 @@ Moteurs TTS (tous gratuits):
             print(f"Langue detectee: {result.language} (confiance: {result.confidence:.0%})")
         except ImportError:
             args.language = "fr"
+
+    # Appliquer le profil si specifie (v5.0)
+    if args.profile:
+        from src.config_profiles import load_profile
+        profile_config = load_profile(args.profile)
+        if profile_config:
+            print(f"Profil applique: {args.profile}")
+            # Appliquer les valeurs du profil (sauf si explicitement defini en CLI)
+            if not args.hq and profile_config.get("hq"):
+                args.hq = True
+            if args.style == "storytelling" and profile_config.get("style"):
+                args.style = profile_config["style"]
+            if args.speed == 1.0 and profile_config.get("speed"):
+                args.speed = profile_config["speed"]
+            if not args.multivoice and profile_config.get("multivoice"):
+                args.multivoice = True
+            if not args.master and profile_config.get("master"):
+                args.master = True
+            if not args.sound_effects and profile_config.get("enable_sound_effects"):
+                args.sound_effects = True
+            if not args.ambiance and profile_config.get("ambiance"):
+                args.ambiance = profile_config["ambiance"]
+            if not args.chapter_jingle and profile_config.get("chapter_jingle"):
+                args.chapter_jingle = profile_config["chapter_jingle"]
 
     # Mode dry-run
     if args.dry_run:

@@ -117,6 +117,13 @@ from .llm_emotion_detector import (
     EmotionCategory
 )
 
+# v5.0: Sound effects
+from .soundfx_engine import (
+    SoundFXEngine,
+    BUILTIN_EFFECTS,
+    apply_sound_effects_to_audio,
+)
+
 
 @dataclass
 class ExtendedPipelineConfig(HQPipelineConfig):
@@ -191,6 +198,11 @@ class ExtendedPipelineConfig(HQPipelineConfig):
     llm_provider: str = "ollama"
     llm_model: str = "llama3.2"
 
+    # v5.0: Sound effects
+    enable_sound_effects: bool = False
+    sound_effects_intensity: float = 0.3  # 0.0-1.0
+    chapter_jingle: Optional[str] = None  # 'chapter_start', 'chapter_end', etc.
+
     def save(self, path: Path):
         """Sauvegarde la configuration etendue."""
         data = {
@@ -239,6 +251,10 @@ class ExtendedPipelineConfig(HQPipelineConfig):
             "enable_llm_emotion": self.enable_llm_emotion,
             "llm_provider": self.llm_provider,
             "llm_model": self.llm_model,
+            # v5.0
+            "enable_sound_effects": self.enable_sound_effects,
+            "sound_effects_intensity": self.sound_effects_intensity,
+            "chapter_jingle": self.chapter_jingle,
         }
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -474,6 +490,100 @@ class ExtendedHQPipeline:
             self.llm_emotion_detector = LLMEmotionDetector(llm_config)
         else:
             self.llm_emotion_detector = None
+
+        # v5.0: Sound effects
+        if self.config.enable_sound_effects:
+            self.soundfx_engine = SoundFXEngine(sample_rate=24000)
+        else:
+            self.soundfx_engine = None
+
+    def _apply_sound_effects(
+        self,
+        audio: np.ndarray,
+        segments: List[ExtendedHQSegment],
+        sample_rate: int = 24000,
+    ) -> np.ndarray:
+        """
+        Applique des effets sonores contextuels à l'audio.
+
+        Args:
+            audio: Audio source
+            segments: Segments avec métadonnées d'émotion/contexte
+            sample_rate: Taux d'échantillonnage
+
+        Returns:
+            Audio avec effets sonores mixés
+        """
+        if not self.config.enable_sound_effects or not self.soundfx_engine:
+            return audio
+
+        intensity = self.config.sound_effects_intensity
+        effects_map: Dict[float, tuple[str, float]] = {}
+
+        # Calculer la position temporelle de chaque segment
+        current_time = 0.0
+
+        for seg in segments:
+            seg_duration = getattr(seg, 'duration', 0.0)
+            emotion = getattr(seg, 'emotion', None)
+            context = getattr(seg, 'narrative_context', None)
+
+            # Ajouter des effets selon le contexte
+            if emotion == 'suspense' or context == 'suspense':
+                effects_map[current_time] = ('suspense', intensity * 0.5)
+
+            elif emotion == 'fear' or context == 'action':
+                effects_map[current_time] = ('whoosh', intensity * 0.4)
+
+            elif emotion == 'surprise' or emotion == 'shock':
+                effects_map[current_time] = ('impact_soft', intensity * 0.3)
+
+            elif emotion == 'joy' or emotion == 'excitement':
+                effects_map[current_time] = ('reveal', intensity * 0.3)
+
+            current_time += seg_duration
+
+        # Appliquer les effets
+        if effects_map:
+            audio = apply_sound_effects_to_audio(audio, sample_rate, effects_map)
+
+        return audio
+
+    def _apply_chapter_jingle(
+        self,
+        audio: np.ndarray,
+        sample_rate: int = 24000,
+        position: str = 'start',
+    ) -> np.ndarray:
+        """
+        Ajoute un jingle au début ou à la fin d'un chapitre.
+
+        Args:
+            audio: Audio du chapitre
+            sample_rate: Taux d'échantillonnage
+            position: 'start' ou 'end'
+
+        Returns:
+            Audio avec jingle ajouté
+        """
+        jingle_name = self.config.chapter_jingle
+        if not jingle_name or not self.soundfx_engine:
+            return audio
+
+        # Générer le jingle
+        jingle = self.soundfx_engine.generate(
+            jingle_name,
+            intensity=self.config.sound_effects_intensity,
+            duration=1.5,
+        )
+
+        # Ajouter un silence de transition
+        silence = np.zeros(int(0.5 * sample_rate), dtype=np.float32)
+
+        if position == 'start':
+            return np.concatenate([jingle, silence, audio])
+        else:  # 'end'
+            return np.concatenate([audio, silence, jingle])
 
     def _process_audio_tags(self, text: str) -> ProcessedSegment:
         """Traite les audio tags dans le texte."""

@@ -2,7 +2,7 @@
 Moteur Kokoro TTS - Haute qualité pour audiobooks.
 
 Kokoro-82M: 82 millions de paramètres, qualité proche d'ElevenLabs.
-Performance: ~5x temps réel sur CPU.
+Performance: ~5x temps réel sur CPU, plus rapide avec GPU CUDA.
 
 Fonctionnalités avancées:
 - Voice blending (mélange de voix)
@@ -10,6 +10,7 @@ Fonctionnalités avancées:
 - Cohérence cross-chapitre
 - Multi-voix par personnage
 - Prosodie émotionnelle
+- Support GPU via ONNX Runtime (v5.0)
 """
 from pathlib import Path
 from typing import Optional, List, Tuple, TYPE_CHECKING
@@ -19,6 +20,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from .advanced_preprocessor import EnrichedSegment
+    from .gpu_config import GPUConfig
 
 
 # Voix disponibles
@@ -128,7 +130,8 @@ class KokoroEngine:
         sentence_pause: float = 0.3,
         paragraph_pause: float = 0.8,
         enhance_audio: bool = True,
-        enhance_style: str = "broadcast"
+        enhance_style: str = "broadcast",
+        gpu_config: Optional["GPUConfig"] = None,
     ):
         """
         Initialise le moteur Kokoro.
@@ -142,6 +145,7 @@ class KokoroEngine:
             paragraph_pause: Pause entre paragraphes (secondes)
             enhance_audio: Activer le post-processing audio (recommandé)
             enhance_style: Style d'enhancement ("broadcast", "natural", "bright")
+            gpu_config: Configuration GPU (v5.0) - si None, utilise la config globale
         """
         self.model_path = Path(model_path)
         self.voices_path = Path(voices_path)
@@ -151,10 +155,12 @@ class KokoroEngine:
         self.paragraph_pause = paragraph_pause
         self.enhance_audio = enhance_audio
         self.enhance_style = enhance_style
+        self.gpu_config = gpu_config
         self._kokoro = None
         self._available = None
         self._voice_cache = {}  # Cache pour les voix blendées
         self._audio_processor = None
+        self._using_gpu = False
 
     def is_available(self) -> bool:
         """Vérifie si Kokoro est disponible."""
@@ -174,7 +180,7 @@ class KokoroEngine:
         return self._available
 
     def _load_model(self):
-        """Charge le modèle Kokoro."""
+        """Charge le modèle Kokoro avec support GPU optionnel."""
         if self._kokoro is not None:
             return self._kokoro
 
@@ -182,9 +188,63 @@ class KokoroEngine:
             raise RuntimeError("Kokoro non disponible. Vérifiez l'installation.")
 
         from kokoro_onnx import Kokoro
-        print("Chargement du modèle Kokoro-82M...")
+
+        # Configurer GPU si demandé
+        gpu_info = self._setup_gpu()
+
+        print(f"Chargement du modèle Kokoro-82M... ({gpu_info})")
         self._kokoro = Kokoro(str(self.model_path), str(self.voices_path))
         return self._kokoro
+
+    def _setup_gpu(self) -> str:
+        """
+        Configure ONNX Runtime pour utiliser le GPU si disponible.
+
+        Returns:
+            Description du device utilisé
+        """
+        # Obtenir la config GPU
+        if self.gpu_config is None:
+            try:
+                from src.gpu_config import get_gpu_config
+                self.gpu_config = get_gpu_config()
+            except ImportError:
+                return "CPU"
+
+        device = self.gpu_config.get_device()
+
+        if device == "cuda":
+            try:
+                import onnxruntime as ort
+                providers = ort.get_available_providers()
+                if 'CUDAExecutionProvider' in providers:
+                    # Configurer ONNX Runtime pour CUDA
+                    ort.set_default_logger_severity(3)  # Réduire le logging
+                    self._using_gpu = True
+                    return "GPU CUDA"
+                else:
+                    return "CPU (CUDA non disponible dans onnxruntime)"
+            except ImportError:
+                return "CPU (onnxruntime non installé)"
+
+        elif device == "mps":
+            # Apple Silicon - CoreML provider
+            try:
+                import onnxruntime as ort
+                providers = ort.get_available_providers()
+                if 'CoreMLExecutionProvider' in providers:
+                    self._using_gpu = True
+                    return "Apple Silicon (CoreML)"
+            except ImportError:
+                pass
+            return "CPU"
+
+        return "CPU"
+
+    @property
+    def is_using_gpu(self) -> bool:
+        """Indique si le GPU est utilisé."""
+        return self._using_gpu
 
     def get_lang(self) -> str:
         """Retourne le code langue pour la voix sélectionnée."""

@@ -38,6 +38,8 @@ class ChapterInfo:
     audio_file: Path
     duration: float = 0.0  # en secondes
     start_time: float = 0.0  # position dans l'audiobook complet
+    summary: str = ""  # Résumé du chapitre (v5.0)
+    word_count: int = 0  # Nombre de mots (v5.0)
 
 
 def get_audio_duration(filepath: Path) -> float:

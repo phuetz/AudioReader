@@ -36,12 +36,40 @@ EDGE_VOICES = {
     "fr": [
         VoiceInfo(id="fr-FR-DeniseNeural", name="Denise", gender="F", language="fr", engine="edge", style="neural"),
         VoiceInfo(id="fr-FR-HenriNeural", name="Henri", gender="M", language="fr", engine="edge", style="neural"),
-        VoiceInfo(id="fr-CA-SylvieNeural", name="Sylvie (CA)", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-AlainNeural", name="Alain", gender="M", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-BrigitteNeural", name="Brigitte", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-CelesteNeural", name="Céleste", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-ClaudeNeural", name="Claude", gender="M", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-CoralieNeural", name="Coralie", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-EloiseNeural", name="Éloise", gender="F", language="fr", engine="edge", style="children"),
+        VoiceInfo(id="fr-FR-JacquelineNeural", name="Jacqueline", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-JeromeNeural", name="Jérôme", gender="M", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-JosephineNeural", name="Joséphine", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-MauriceNeural", name="Maurice", gender="M", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-YvesNeural", name="Yves", gender="M", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-FR-YvetteNeural", name="Yvette", gender="F", language="fr", engine="edge", style="neural"),
+        VoiceInfo(id="fr-CA-SylvieNeural", name="Sylvie (CA)", gender="F", language="fr", engine="edge", style="canadian"),
+        VoiceInfo(id="fr-CA-JeanNeural", name="Jean (CA)", gender="M", language="fr", engine="edge", style="canadian"),
+        VoiceInfo(id="fr-CA-AntoineNeural", name="Antoine (CA)", gender="M", language="fr", engine="edge", style="canadian"),
+        VoiceInfo(id="fr-BE-CharlineNeural", name="Charline (BE)", gender="F", language="fr", engine="edge", style="belgian"),
+        VoiceInfo(id="fr-BE-GerardNeural", name="Gérard (BE)", gender="M", language="fr", engine="edge", style="belgian"),
+        VoiceInfo(id="fr-CH-ArianeNeural", name="Ariane (CH)", gender="F", language="fr", engine="edge", style="swiss"),
+        VoiceInfo(id="fr-CH-FabriceNeural", name="Fabrice (CH)", gender="M", language="fr", engine="edge", style="swiss"),
     ],
     "en": [
         VoiceInfo(id="en-US-JennyNeural", name="Jenny", gender="F", language="en", engine="edge", style="neural"),
         VoiceInfo(id="en-US-GuyNeural", name="Guy", gender="M", language="en", engine="edge", style="neural"),
         VoiceInfo(id="en-GB-SoniaNeural", name="Sonia", gender="F", language="en", engine="edge", style="british"),
+    ],
+}
+
+# MMS-TTS voices (Meta Multilingual Speech)
+MMS_VOICES = {
+    "fr": [
+        VoiceInfo(id="mms_fr", name="MMS Français", gender="N", language="fr", engine="mms", style="neural"),
+    ],
+    "en": [
+        VoiceInfo(id="mms_en", name="MMS English", gender="N", language="en", engine="mms", style="neural"),
     ],
 }
 
@@ -55,6 +83,7 @@ async def list_voices(language: Optional[str] = None):
     for lang in langs:
         voices.extend(KOKORO_VOICES.get(lang, []))
         voices.extend(EDGE_VOICES.get(lang, []))
+        voices.extend(MMS_VOICES.get(lang, []))
 
     # Voix clonées
     for meta_file in CLONED_VOICES_DIR.glob("*.json"):

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 # Ajouter le répertoire parent au path pour les imports src/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from api.routers import generation, jobs, voices, files, analysis, podcast, projects, config, openai_compat
+from api.routers import generation, jobs, voices, files, analysis, podcast, projects, config, openai_compat, streaming
 
 
 def create_app() -> FastAPI:
@@ -23,7 +23,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AudioReader API",
         description="API v2 pour AudioReader — génération d'audiobooks haute qualité",
-        version="4.0.0",
+        version="5.0.0",
     )
 
     app.add_middleware(
@@ -43,6 +43,9 @@ def create_app() -> FastAPI:
     app.include_router(analysis.router)
     app.include_router(podcast.router)
     app.include_router(projects.router)
+
+    # --- Streaming audio (v5.0) ---
+    app.include_router(streaming.router)
 
     # --- OpenAI-compatible API ---
     app.include_router(openai_compat.router)
