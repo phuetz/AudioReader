@@ -15,7 +15,11 @@ from fastapi.staticfiles import StaticFiles
 # Ajouter le répertoire parent au path pour les imports src/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from api.routers import generation, jobs, voices, files, analysis, podcast, projects, config, openai_compat, streaming, acx, corrections
+from api.routers import (
+    generation, jobs, voices, files, analysis, podcast, projects, config,
+    openai_compat, streaming, acx, corrections,
+    review, queue, character_profiles, export_platforms, subtitles, summaries, consistency,
+)
 
 
 def create_app() -> FastAPI:
@@ -52,6 +56,15 @@ def create_app() -> FastAPI:
 
     # --- Corrections (v5.0) ---
     app.include_router(corrections.router)
+
+    # --- v5.1: Review, Queue, Profiles, Export, Subtitles, Summaries, Consistency ---
+    app.include_router(review.router)
+    app.include_router(queue.router)
+    app.include_router(character_profiles.router)
+    app.include_router(export_platforms.router)
+    app.include_router(subtitles.router)
+    app.include_router(summaries.router)
+    app.include_router(consistency.router)
 
     # --- OpenAI-compatible API ---
     app.include_router(openai_compat.router)

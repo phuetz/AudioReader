@@ -14,6 +14,9 @@ const ProjectsPage = lazy(() => import('./pages/ProjectsPage'))
 const PodcastPage = lazy(() => import('./pages/PodcastPage'))
 const FilesPage = lazy(() => import('./pages/FilesPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const ReviewPage = lazy(() => import('./pages/ReviewPage'))
+const QueuePage = lazy(() => import('./pages/QueuePage'))
+const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'))
 
 function PageLoader() {
   return (
@@ -39,6 +42,9 @@ export default function App() {
           <Route path="/podcast" element={<PodcastPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/review/:jobId" element={<ReviewPage />} />
+          <Route path="/queue" element={<QueuePage />} />
+          <Route path="/voice-lab" element={<VoiceLabPage />} />
         </Routes>
       </Suspense>
       <FloatingPlayer />

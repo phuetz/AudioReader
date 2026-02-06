@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Type, BookOpen, Users, Mic, Shield, BookA, FolderKanban, Radio,
-  FolderOpen, Settings, ChevronLeft, ChevronRight, Headphones,
+  FolderOpen, Settings, ChevronLeft, ChevronRight, Headphones, ListOrdered, Sliders,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -14,6 +14,8 @@ const NAV_ITEMS = [
   { to: '/acx', icon: Shield, label: 'ACX' },
   { to: '/corrections', icon: BookA, label: 'Corrections' },
   { to: '/projects', icon: FolderKanban, label: 'Projets' },
+  { to: '/queue', icon: ListOrdered, label: "File d'attente" },
+  { to: '/voice-lab', icon: Sliders, label: 'Labo Voix' },
   { to: '/podcast', icon: Radio, label: 'Podcast' },
   { to: '/files', icon: FolderOpen, label: 'Fichiers' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },

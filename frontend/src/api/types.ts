@@ -129,6 +129,79 @@ export interface CorrectionsList {
   total: number
 }
 
+// ── v5.1 Types ─────────────────────────────────────────────────────────────
+
+export interface ReviewSegment {
+  id: string
+  index: number
+  text: string
+  audio_url: string
+  duration: number
+  speaker?: string
+  emotion?: string
+  voice_id: string
+}
+
+export interface QueueItem {
+  queue_id: string
+  job_id?: string
+  file_id: string
+  config: Record<string, unknown>
+  priority: number
+  status: 'waiting' | 'processing' | 'completed' | 'failed'
+  added_at: string
+  started_at?: string
+  completed_at?: string
+  error?: string
+}
+
+export interface QueueStatus {
+  items: QueueItem[]
+  total: number
+  processing: number
+  paused: boolean
+}
+
+export interface VoiceMorphSettings {
+  pitch: number
+  formant: number
+  speed: number
+}
+
+export interface CharacterProfile {
+  id: string
+  name: string
+  voice_id: string
+  morph?: VoiceMorphSettings
+  gender?: string
+  aliases: string[]
+  personality_notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ConsistencyIssue {
+  type: 'voice_change' | 'attribution_conflict' | 'emotion_jump'
+  severity: 'info' | 'warning' | 'error'
+  segment_indices: number[]
+  description: string
+  suggestion: string
+}
+
+export interface ConsistencyReport {
+  score: number
+  issues: ConsistencyIssue[]
+  total_segments: number
+}
+
+export interface ChapterSummary {
+  chapter: number
+  title: string
+  summary: string
+}
+
+export type ExportPlatform = 'spotify' | 'youtube' | 'podcast' | 'audible'
+
 /** Extended audiobook generation options (v5.0) */
 export interface AudiobookOptions {
   // Basic

@@ -2,15 +2,22 @@ import apiClient from './client'
 import type {
   AnalysisResult,
   AudiobookOptions,
+  CharacterProfile,
   ConfigResponse,
+  ConsistencyReport,
   CorrectionRule,
   CorrectionsList,
+  ChapterSummary,
+  ExportPlatform,
   FileInfo,
   HealthResponse,
   JobCreatedResponse,
   JobResponse,
   PodcastStatus,
   ProjectInfo,
+  QueueItem,
+  QueueStatus,
+  ReviewSegment,
   UploadResponse,
   VoiceInfo,
 } from './types'
@@ -139,3 +146,90 @@ export const applyCorrections = (text: string, confidenceLevels?: string[]) =>
     `${V2}/corrections/apply`,
     { text, confidence_levels: confidenceLevels || ['high', 'medium'] }
   ).then(r => r.data)
+
+// ── Review (v5.1) ──────────────────────────────────────────────────────────
+
+export const getSegments = (jobId: string) =>
+  apiClient.get<{ segments: ReviewSegment[]; total: number }>(`${V2}/jobs/${jobId}/segments`).then(r => r.data)
+
+export const updateSegment = (jobId: string, segmentId: string, text: string) =>
+  apiClient.put(`${V2}/jobs/${jobId}/segments/${segmentId}`, { text }).then(r => r.data)
+
+export const regenerateSegment = (jobId: string, segmentId: string, params?: {
+  voice_id?: string; speed?: number; emotion?: string
+}) =>
+  apiClient.post<JobCreatedResponse>(`${V2}/jobs/${jobId}/segments/${segmentId}/regenerate`, params || {}).then(r => r.data)
+
+export const rebuildAudio = (jobId: string) =>
+  apiClient.post<JobCreatedResponse>(`${V2}/jobs/${jobId}/rebuild`).then(r => r.data)
+
+// ── Queue (v5.1) ───────────────────────────────────────────────────────────
+
+export const getQueue = () =>
+  apiClient.get<QueueStatus>(`${V2}/queue`).then(r => r.data)
+
+export const addToQueue = (params: { file_id: string; config?: Record<string, unknown>; priority?: number }) =>
+  apiClient.post<QueueItem>(`${V2}/queue/add`, params).then(r => r.data)
+
+export const removeFromQueue = (queueId: string) =>
+  apiClient.delete(`${V2}/queue/${queueId}`).then(r => r.data)
+
+export const reorderQueue = (order: string[]) =>
+  apiClient.post(`${V2}/queue/reorder`, { order }).then(r => r.data)
+
+export const pauseQueue = () =>
+  apiClient.post(`${V2}/queue/pause`).then(r => r.data)
+
+export const resumeQueue = () =>
+  apiClient.post(`${V2}/queue/resume`).then(r => r.data)
+
+export const clearCompleted = () =>
+  apiClient.post(`${V2}/queue/clear`).then(r => r.data)
+
+// ── Character Profiles (v5.1) ──────────────────────────────────────────────
+
+export const getCharacterProfiles = (search?: string) =>
+  apiClient.get<{ profiles: CharacterProfile[]; total: number }>(`${V2}/character-profiles`, { params: { search } }).then(r => r.data)
+
+export const createCharacterProfile = (params: {
+  name: string; voice_id: string; gender?: string; aliases?: string[];
+  morph?: { pitch: number; formant: number; speed: number }; personality_notes?: string
+}) =>
+  apiClient.post<CharacterProfile>(`${V2}/character-profiles`, params).then(r => r.data)
+
+export const updateCharacterProfile = (id: string, params: Partial<{
+  name: string; voice_id: string; gender: string; aliases: string[];
+  morph: { pitch: number; formant: number; speed: number }; personality_notes: string
+}>) =>
+  apiClient.put<CharacterProfile>(`${V2}/character-profiles/${id}`, params).then(r => r.data)
+
+export const deleteCharacterProfile = (id: string) =>
+  apiClient.delete(`${V2}/character-profiles/${id}`).then(r => r.data)
+
+// ── Export Platforms (v5.1) ─────────────────────────────────────────────────
+
+export const exportForPlatform = (platform: ExportPlatform, jobId: string, metadata?: {
+  title?: string; artist?: string; album?: string
+}) =>
+  apiClient.post<JobCreatedResponse>(`${V2}/export/${platform}`, { job_id: jobId, ...metadata }).then(r => r.data)
+
+// ── Subtitles (v5.1) ───────────────────────────────────────────────────────
+
+export const generateSubtitles = (jobId: string, format: string = 'srt', mode: string = 'estimated') =>
+  apiClient.post<JobCreatedResponse>(`${V2}/jobs/${jobId}/subtitles`, { format, mode }).then(r => r.data)
+
+export const downloadSubtitles = (jobId: string, format: string = 'srt') =>
+  apiClient.get(`${V2}/jobs/${jobId}/subtitles`, { params: { format }, responseType: 'blob' }).then(r => r.data as Blob)
+
+// ── Summaries (v5.1) ───────────────────────────────────────────────────────
+
+export const generateSummaries = (jobId: string, provider?: string, style?: string) =>
+  apiClient.post<JobCreatedResponse>(`${V2}/jobs/${jobId}/summaries`, { provider, style }).then(r => r.data)
+
+export const getSummaries = (jobId: string) =>
+  apiClient.get<{ summaries: ChapterSummary[]; total: number }>(`${V2}/jobs/${jobId}/summaries`).then(r => r.data)
+
+// ── Consistency (v5.1) ─────────────────────────────────────────────────────
+
+export const analyzeConsistency = (jobId: string) =>
+  apiClient.post<ConsistencyReport>(`${V2}/jobs/${jobId}/consistency`).then(r => r.data)

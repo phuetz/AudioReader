@@ -91,7 +91,7 @@ python generate_tome1.py
 - `french_preprocessor.py` - French-specific text normalization
 
 **Character & Emotion:**
-- `character_detector.py` - Detects dialogue and speakers from text patterns
+- `character_detector.py` - Detects dialogue and speakers from text patterns (v5.0: LLM validation support)
 - `emotion_analyzer.py` - Sentiment analysis with prosody hints
 - `narrative_context.py` - Detects context type (action, description, suspense)
 - `emotion_continuity.py` - Smooths emotional transitions
@@ -603,6 +603,30 @@ print(result["prosody"]["speed"])    # 0.85 (slower for suspense)
 export GEMINI_API_KEY="your-gemini-key"
 export OPENAI_API_KEY="your-openai-key"
 export ANTHROPIC_API_KEY="your-anthropic-key"
+```
+
+**CharacterDetector Integration:**
+
+The `CharacterDetector` can use `LLMEnhancer` for inline validation of ambiguous character names:
+
+```python
+from src.character_detector import CharacterDetector
+from src.llm_enhancer import LLMEnhancer, LLMConfig
+
+# Create enhancer with heuristic fallback
+enhancer = LLMEnhancer(LLMConfig(fallback_to_heuristics=True))
+
+# Pass to CharacterDetector for inline validation
+detector = CharacterDetector(lang="fr", llm_enhancer=enhancer)
+
+# Names with confidence between 0.3-0.7 are validated via LLM
+segments = detector.detect_dialogue_segments(text)
+characters = detector.get_characters()  # False positives filtered
+```
+
+In the HQ pipeline, LLM validation is automatic when `--llm-enhance` is enabled:
+```bash
+python audio_reader.py livre.md --hq --llm-enhance --llm-provider gemini
 ```
 
 ## v3.0 Platform Features
