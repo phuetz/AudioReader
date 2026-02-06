@@ -43,7 +43,7 @@ _segments_store: dict[str, list[dict]] = {}
 @router.get("/jobs/{job_id}/segments")
 async def get_job_segments(job_id: str) -> dict:
     """Liste tous les segments audio d'un job."""
-    job = job_store.get(job_id)
+    job = await job_store.get(job_id)
     if not job:
         raise APIError(ErrorCode.NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
 
@@ -68,11 +68,11 @@ async def regenerate_segment(
     if not seg:
         raise APIError(ErrorCode.NOT_FOUND, f"Segment {segment_id} non trouvé", status_code=404)
 
-    regen_job_id = job_store.create("regenerate")
+    regen_job_id = await job_store.create("regenerate")
 
     async def process():
         try:
-            job_store.update(regen_job_id, status=JobStatus.processing, progress=10, phase="regenerating")
+            await job_store.update(regen_job_id, status=JobStatus.processing, progress=10, phase="regenerating")
             tts = get_tts_engine()
 
             voice = options.voice_id or seg["voice_id"]
@@ -94,7 +94,7 @@ async def regenerate_segment(
             seg["duration"] = round(duration, 2)
             seg["voice_id"] = voice
 
-            job_store.update(
+            await job_store.update(
                 regen_job_id,
                 status=JobStatus.completed,
                 progress=100,
@@ -102,7 +102,7 @@ async def regenerate_segment(
                 result={"segment_id": segment_id, "audio_url": seg["audio_url"], "duration": seg["duration"]},
             )
         except Exception as e:
-            job_store.update(regen_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(regen_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": regen_job_id, "message": "Régénération démarrée"}
@@ -130,14 +130,14 @@ async def rebuild_from_segments(job_id: str, background_tasks: BackgroundTasks) 
     if not segments:
         raise APIError(ErrorCode.NOT_FOUND, f"Segments pour job {job_id} non trouvés", status_code=404)
 
-    rebuild_job_id = job_store.create("rebuild")
+    rebuild_job_id = await job_store.create("rebuild")
 
     async def process():
         try:
             import numpy as np
             import soundfile as sf
 
-            job_store.update(rebuild_job_id, status=JobStatus.processing, progress=10, phase="loading_segments")
+            await job_store.update(rebuild_job_id, status=JobStatus.processing, progress=10, phase="loading_segments")
 
             parts = []
             for i, seg in enumerate(segments):
@@ -148,14 +148,14 @@ async def rebuild_from_segments(job_id: str, background_tasks: BackgroundTasks) 
                     # Add small silence between segments
                     parts.append(np.zeros(int(sr * 0.3)))
 
-                job_store.update(
+                await job_store.update(
                     rebuild_job_id,
                     progress=10 + int(70 * (i + 1) / len(segments)),
                     phase="assembling",
                 )
 
             if not parts:
-                job_store.update(rebuild_job_id, status=JobStatus.failed, error="Aucun segment audio trouvé")
+                await job_store.update(rebuild_job_id, status=JobStatus.failed, error="Aucun segment audio trouvé")
                 return
 
             full_audio = np.concatenate(parts)
@@ -164,7 +164,7 @@ async def rebuild_from_segments(job_id: str, background_tasks: BackgroundTasks) 
             sf.write(str(output_path), full_audio, 24000)
 
             duration = len(full_audio) / 24000
-            job_store.update(
+            await job_store.update(
                 rebuild_job_id,
                 status=JobStatus.completed,
                 progress=100,
@@ -176,7 +176,7 @@ async def rebuild_from_segments(job_id: str, background_tasks: BackgroundTasks) 
                 },
             )
         except Exception as e:
-            job_store.update(rebuild_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(rebuild_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": rebuild_job_id, "message": "Reconstruction démarrée"}

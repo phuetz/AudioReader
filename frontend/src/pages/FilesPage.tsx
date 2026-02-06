@@ -13,12 +13,15 @@ import {
   Clock,
   HardDrive,
   FileAudio,
+  PackageCheck,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
 import AudioPlayer from '../components/audio/AudioPlayer'
 import { ToastContainer, toast } from '../components/ui/Toast'
 import { getFiles } from '../api/endpoints'
+import apiClient from '../api/client'
 import type { FileInfo } from '../api/types'
 import { usePlaylistStore } from '../stores/usePlaylistStore'
 import { useAudioStore } from '../stores/useAudioStore'
@@ -39,6 +42,8 @@ export default function FilesPage() {
   const [files, setFiles] = useState<FileInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [selectedForExport, setSelectedForExport] = useState<Set<string>>(new Set())
+  const [exporting, setExporting] = useState(false)
 
   // Filtering & sorting
   const [search, setSearch] = useState('')
@@ -132,6 +137,35 @@ export default function FilesPage() {
     [files]
   )
 
+  const toggleExportSelect = (name: string) => {
+    setSelectedForExport(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name); else next.add(name)
+      return next
+    })
+  }
+
+  const handleBatchExport = async () => {
+    if (selectedForExport.size === 0) { toast.error('Sélectionnez des fichiers'); return }
+    setExporting(true)
+    try {
+      const res = await apiClient.post('/api/v2/files/batch-export',
+        { filenames: Array.from(selectedForExport) },
+        { responseType: 'blob' }
+      )
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'audioreader_export.zip'; a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Export ZIP téléchargé')
+      setSelectedForExport(new Set())
+    } catch {
+      toast.error('Erreur export')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const SortButton = ({
     field,
     label,
@@ -165,6 +199,18 @@ export default function FilesPage() {
           <FolderOpen className="w-5 h-5 text-accent" />
           Fichiers générés
         </h1>
+        <div className="flex items-center gap-3">
+          {selectedForExport.size > 0 && (
+            <Button
+              onClick={handleBatchExport}
+              loading={exporting}
+              icon={<PackageCheck className="w-4 h-4" />}
+              size="sm"
+            >
+              Export ZIP ({selectedForExport.size})
+            </Button>
+          )}
+        </div>
         <div className="flex items-center gap-4 text-sm text-muted">
           <span className="flex items-center gap-1">
             <FileAudio className="w-4 h-4" />
@@ -265,6 +311,12 @@ export default function FilesPage() {
                 key={f.id}
                 className="flex items-center gap-4 py-3 hover:bg-panel/50 px-2 rounded group"
               >
+                <input
+                  type="checkbox"
+                  checked={selectedForExport.has(f.name)}
+                  onChange={() => toggleExportSelect(f.name)}
+                  className="w-4 h-4 accent-accent"
+                />
                 <button
                   onClick={() => handlePlay(f)}
                   className="text-cyan hover:text-accent transition-colors cursor-pointer"

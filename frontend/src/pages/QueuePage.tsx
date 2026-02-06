@@ -35,6 +35,7 @@ export default function QueuePage() {
   const [loading, setLoading] = useState(true)
   const [fileId, setFileId] = useState('')
   const [title, setTitle] = useState('')
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -198,8 +199,28 @@ export default function QueuePage() {
           <p className="text-sm text-muted py-4 text-center">Queue vide</p>
         ) : (
           <div className="space-y-1">
-            {queue.waiting.map((job) => (
-              <div key={job.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-panel group">
+            {queue.waiting.map((job, index) => (
+              <div
+                key={job.id}
+                draggable
+                onDragStart={() => setDragIndex(index)}
+                onDragOver={(e) => { e.preventDefault() }}
+                onDrop={() => {
+                  if (dragIndex !== null && dragIndex !== index) {
+                    const ids = queue.waiting.map(j => j.id)
+                    const [moved] = ids.splice(dragIndex, 1)
+                    ids.splice(index, 0, moved)
+                    apiClient.post(`${V2}/queue/reorder`, { order: ids })
+                      .then(() => { fetchQueue(); toast.success('Queue réordonnée') })
+                      .catch(() => toast.error('Erreur réordonnancement'))
+                  }
+                  setDragIndex(null)
+                }}
+                onDragEnd={() => setDragIndex(null)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-panel group transition-opacity ${
+                  dragIndex === index ? 'opacity-50' : ''
+                }`}
+              >
                 <GripVertical className="w-4 h-4 text-muted opacity-0 group-hover:opacity-100 cursor-grab" />
                 <span className="text-sm text-primary flex-1">{job.title}</span>
                 <span className="text-xs text-muted">P{job.priority}</span>

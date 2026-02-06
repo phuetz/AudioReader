@@ -19,6 +19,23 @@
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* Light theme overrides */
+html.light {
+  --color-deep: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-panel: #f0f0f4;
+  --color-border: #d4d4dc;
+  --color-accent: #e08a00;
+  --color-accent-hover: #c87a00;
+  --color-cyan: #0891b2;
+  --color-cyan-dim: #06b6d4;
+  --color-green: #16a34a;
+  --color-red: #dc2626;
+  --color-primary: #1a1a2e;
+  --color-secondary: #4a4a6a;
+  --color-muted: #8888a0;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-deep); }

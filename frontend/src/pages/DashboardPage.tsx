@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Type, BookOpen, Mic, FolderOpen, FolderKanban, Headphones, Shield, Users, Radio } from 'lucide-react'
 import Card from '../components/ui/Card'
@@ -17,7 +17,7 @@ export default function DashboardPage() {
   useEffect(() => {
     getHealth().then(setHealth).catch(() => {})
     getFiles().then(d => setFiles(d.files)).catch(() => {})
-    getJobs(undefined, 5).then(setRecentJobs).catch(() => {})
+    getJobs(undefined, 20).then(setRecentJobs).catch(() => {})
   }, [])
 
   const quickActions = [
@@ -30,6 +30,65 @@ export default function DashboardPage() {
     { icon: Radio, label: 'Podcast', desc: 'Serveur RSS local', to: '/podcast' },
     { icon: FolderOpen, label: 'Fichiers', desc: 'Parcourir les fichiers générés', to: '/files' },
   ]
+
+  // Status distribution
+  const statusCounts = useMemo(() => {
+    const counts = { completed: 0, failed: 0, processing: 0, pending: 0, cancelled: 0 }
+    for (const j of recentJobs) {
+      if (j.status in counts) counts[j.status as keyof typeof counts]++
+    }
+    return counts
+  }, [recentJobs])
+
+  // Total audio duration
+  const totalDuration = useMemo(() => {
+    let sec = 0
+    for (const j of recentJobs) {
+      const dur = j.result?.duration_seconds
+      if (typeof dur === 'number') sec += dur
+    }
+    return sec
+  }, [recentJobs])
+
+  const formatDuration = (s: number) => {
+    if (s < 60) return `${Math.round(s)}s`
+    if (s < 3600) return `${Math.floor(s / 60)}m`
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+  }
+
+  // Simple SVG bar chart for status distribution
+  const StatusChart = () => {
+    const total = Object.values(statusCounts).reduce((a, b) => a + b, 0)
+    if (!total) return null
+    const items = [
+      { label: 'Terminé', count: statusCounts.completed, color: '#22c55e' },
+      { label: 'Échoué', count: statusCounts.failed, color: '#ef4444' },
+      { label: 'En cours', count: statusCounts.processing, color: '#f5a623' },
+      { label: 'En attente', count: statusCounts.pending, color: '#6a6a82' },
+    ].filter(i => i.count > 0)
+
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-panel">
+          {items.map(item => (
+            <div
+              key={item.label}
+              style={{ width: `${(item.count / total) * 100}%`, backgroundColor: item.color }}
+              title={`${item.label}: ${item.count}`}
+            />
+          ))}
+        </div>
+        <div className="flex gap-3 text-xs text-muted">
+          {items.map(item => (
+            <span key={item.label} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+              {item.label} ({item.count})
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -55,8 +114,8 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-4">
-          <p className="text-xs text-muted">Jobs récents</p>
-          <p className="text-2xl font-semibold font-mono text-green mt-1">{recentJobs.length}</p>
+          <p className="text-xs text-muted">Durée totale</p>
+          <p className="text-2xl font-semibold font-mono text-green mt-1">{formatDuration(totalDuration)}</p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-4">
           <p className="text-xs text-muted">Uptime</p>
@@ -65,6 +124,13 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Status Distribution */}
+      {recentJobs.length > 0 && (
+        <Card title="Distribution des jobs">
+          <StatusChart />
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <Card title="Actions rapides">
@@ -90,7 +156,7 @@ export default function DashboardPage() {
           <Button variant="ghost" size="sm" onClick={() => navigate('/files')}>Voir tout</Button>
         }>
           <div className="space-y-2">
-            {recentJobs.map(j => <JobCard key={j.job_id} job={j} />)}
+            {recentJobs.slice(0, 5).map(j => <JobCard key={j.job_id} job={j} />)}
           </div>
         </Card>
       )}

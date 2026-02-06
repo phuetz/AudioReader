@@ -27,8 +27,13 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AudioReader API",
         description="API v2 pour AudioReader — génération d'audiobooks haute qualité",
-        version="5.0.0",
+        version="5.2.0",
     )
+
+    @app.on_event("startup")
+    async def _startup():
+        from api.database import init_db
+        await init_db()
 
     app.add_middleware(
         CORSMiddleware,

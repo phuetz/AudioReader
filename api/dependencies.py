@@ -54,64 +54,71 @@ def get_tts_engine():
 # ── Job Store ────────────────────────────────────────────────────────────────
 
 class JobStore:
-    """Stockage des jobs en mémoire avec support SSE."""
+    """Stockage des jobs avec SQLite + SSE pub-sub en mémoire."""
 
     def __init__(self):
-        self._jobs: Dict[str, Dict[str, Any]] = {}
         self._listeners: Dict[str, list] = {}  # job_id -> [asyncio.Queue]
+        self._global_listeners: list = []  # SSE global
+        self._cache: Dict[str, Dict[str, Any]] = {}  # cache mémoire pour accès rapide
 
-    def create(self, job_type: str = "generate") -> str:
-        job_id = str(uuid.uuid4())[:8]
-        now = datetime.now().isoformat()
-        self._jobs[job_id] = {
-            "status": JobStatus.pending,
-            "progress": 0.0,
-            "phase": None,
-            "result": None,
-            "error": None,
-            "type": job_type,
-            "created_at": now,
-            "updated_at": now,
-            "chapter_index": None,
-            "chapter_title": None,
-            "segments_done": 0,
-            "segments_total": 0,
-            "total_chapters": 0,
-            "cancelled": False,
-        }
+    async def create(self, job_type: str = "generate") -> str:
+        from api.database import db_create_job, db_get_job
+        job_id = await db_create_job(job_type)
+        job = await db_get_job(job_id)
+        if job:
+            self._cache[job_id] = job
         return job_id
 
-    def get(self, job_id: str) -> Optional[Dict[str, Any]]:
-        return self._jobs.get(job_id)
+    async def get(self, job_id: str) -> Optional[Dict[str, Any]]:
+        if job_id in self._cache:
+            return self._cache[job_id]
+        from api.database import db_get_job
+        job = await db_get_job(job_id)
+        if job:
+            self._cache[job_id] = job
+        return job
 
-    def list_all(self) -> Dict[str, Dict[str, Any]]:
-        return dict(self._jobs)
+    async def list_all(
+        self,
+        status: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list, int]:
+        """Liste les jobs avec pagination. Retourne (jobs, total)."""
+        from api.database import db_list_jobs
+        return await db_list_jobs(status=status, offset=offset, limit=limit)
 
-    def update(self, job_id: str, **kwargs):
+    async def update(self, job_id: str, **kwargs):
         """Met à jour un job et notifie les listeners SSE."""
-        if job_id not in self._jobs:
-            return
-        self._jobs[job_id].update(kwargs)
-        self._jobs[job_id]["updated_at"] = datetime.now().isoformat()
-        # Notifier les listeners SSE
+        from api.database import db_update_job
+        await db_update_job(job_id, **kwargs)
+        # Mettre à jour le cache
+        if job_id in self._cache:
+            self._cache[job_id].update(kwargs)
+            self._cache[job_id]["updated_at"] = datetime.now().isoformat()
+        else:
+            from api.database import db_get_job
+            job = await db_get_job(job_id)
+            if job:
+                self._cache[job_id] = job
+        # Notifier les listeners SSE (per-job + global)
         self._notify(job_id)
+        self._notify_global(job_id)
 
-    def cancel(self, job_id: str) -> bool:
-        job = self._jobs.get(job_id)
+    async def cancel(self, job_id: str) -> bool:
+        job = await self.get(job_id)
         if not job:
             return False
         if job["status"] in (JobStatus.completed, JobStatus.failed, JobStatus.cancelled):
             return False
-        job["status"] = JobStatus.cancelled
-        job["cancelled"] = True
-        self._notify(job_id)
+        await self.update(job_id, status=JobStatus.cancelled, cancelled=True)
         return True
 
-    def is_cancelled(self, job_id: str) -> bool:
-        job = self._jobs.get(job_id)
+    async def is_cancelled(self, job_id: str) -> bool:
+        job = await self.get(job_id)
         return job.get("cancelled", False) if job else False
 
-    # ── SSE ──
+    # ── SSE per-job ──
 
     def subscribe(self, job_id: str) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue()
@@ -124,19 +131,57 @@ class JobStore:
             listeners.remove(q)
 
     def _notify(self, job_id: str):
-        job = self._jobs.get(job_id)
+        job = self._cache.get(job_id)
         if not job:
             return
+        data = dict(job)
+        data["job_id"] = job_id
         for q in self._listeners.get(job_id, []):
             try:
-                q.put_nowait(dict(job))
+                q.put_nowait(data)
+            except asyncio.QueueFull:
+                pass
+
+    # ── SSE global ──
+
+    def subscribe_global(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue()
+        self._global_listeners.append(q)
+        return q
+
+    def unsubscribe_global(self, q: asyncio.Queue):
+        if q in self._global_listeners:
+            self._global_listeners.remove(q)
+
+    def _notify_global(self, job_id: str):
+        job = self._cache.get(job_id)
+        if not job:
+            return
+        data = dict(job)
+        data["job_id"] = job_id
+        for q in self._global_listeners:
+            try:
+                q.put_nowait(data)
             except asyncio.QueueFull:
                 pass
 
     def make_progress_callback(self, job_id: str) -> Callable:
         """Crée un callback compatible avec ExtendedHQPipeline.process_chapter()."""
+        import asyncio as _asyncio
+
         def callback(progress: float, phase: str = "", **extra):
-            self.update(job_id, progress=progress, phase=phase, **extra)
+            try:
+                loop = _asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.update(job_id, progress=progress, phase=phase, **extra))
+                else:
+                    loop.run_until_complete(self.update(job_id, progress=progress, phase=phase, **extra))
+            except RuntimeError:
+                # Cache-only update if no event loop
+                if job_id in self._cache:
+                    self._cache[job_id].update({"progress": progress, "phase": phase, **extra})
+                    self._notify(job_id)
+                    self._notify_global(job_id)
         return callback
 
 

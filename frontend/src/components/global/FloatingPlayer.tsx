@@ -11,6 +11,8 @@ import {
   Repeat1,
   Shuffle,
   List,
+  Gauge,
+  Volume2,
 } from 'lucide-react'
 import { useAudioStore } from '../../stores/useAudioStore'
 import { usePlaylistStore } from '../../stores/usePlaylistStore'
@@ -37,9 +39,13 @@ export default function FloatingPlayer() {
     clearQueue,
   } = usePlaylistStore()
 
-  const { seek, toggle } = useAudioPlayer()
+  const { seek, toggle, setPlaybackRate, setVolume: setAudioVolume } = useAudioPlayer()
   const [isExpanded, setIsExpanded] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
+  const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0] as const
+  const [speedIndex, setSpeedIndex] = useState(1)
+  const [volume, setVolume] = useState(1.0)
+  const [showVolume, setShowVolume] = useState(false)
 
   const currentTrack = getCurrentTrack()
   const { peaks } = useWaveform(currentUrl || '', 80)
@@ -118,8 +124,8 @@ export default function FloatingPlayer() {
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 transition-all duration-300 ${
-        isExpanded ? 'w-96' : 'w-80'
+      className={`fixed bottom-16 md:bottom-4 right-2 md:right-4 z-50 transition-all duration-300 ${
+        isExpanded ? 'w-[calc(100%-1rem)] md:w-96' : 'w-[calc(100%-1rem)] md:w-80'
       }`}
     >
       {/* Queue Panel */}
@@ -268,6 +274,50 @@ export default function FloatingPlayer() {
             >
               {repeatIcon()}
             </button>
+
+            {/* Speed */}
+            <button
+              onClick={() => {
+                const next = (speedIndex + 1) % SPEED_OPTIONS.length
+                setSpeedIndex(next)
+                setPlaybackRate(SPEED_OPTIONS[next])
+              }}
+              className="p-1.5 rounded text-xs font-mono text-muted hover:text-primary transition-colors"
+              title="Vitesse de lecture"
+            >
+              <span className="flex items-center gap-0.5">
+                <Gauge className="w-3 h-3" />
+                {SPEED_OPTIONS[speedIndex]}x
+              </span>
+            </button>
+
+            {/* Volume */}
+            <div className="relative">
+              <button
+                onClick={() => setShowVolume(!showVolume)}
+                className="p-1.5 rounded text-muted hover:text-primary transition-colors"
+                title="Volume"
+              >
+                <Volume2 className="w-4 h-4" />
+              </button>
+              {showVolume && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-panel border border-border rounded-lg shadow-lg">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={volume}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      setVolume(v)
+                      setAudioVolume(v)
+                    }}
+                    className="w-20 accent-accent"
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Spacer */}
             <div className="flex-1" />

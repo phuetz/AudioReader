@@ -6,6 +6,7 @@ import Select from '../components/ui/Select'
 import { ToastContainer, toast } from '../components/ui/Toast'
 import { useVoiceStore } from '../stores/useVoiceStore'
 import VoiceBlender from '../components/voice/VoiceBlender'
+import VoiceComparison from '../components/audio/VoiceComparison'
 import { previewVoice } from '../api/endpoints'
 
 interface VoicePreset {
@@ -224,6 +225,9 @@ export default function VoiceLabPage() {
           </div>
         )}
       </Card>
+
+      {/* A/B Voice Comparison */}
+      <VoiceComparison />
 
       <ToastContainer />
     </div>

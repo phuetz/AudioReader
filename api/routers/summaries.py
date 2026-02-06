@@ -37,15 +37,15 @@ async def generate_summaries(
     job_id: str, options: SummaryOptions, background_tasks: BackgroundTasks
 ) -> dict:
     """Génère des résumés pour tous les chapitres d'un job."""
-    job = job_store.get(job_id)
+    job = await job_store.get(job_id)
     if not job:
         raise APIError(ErrorCode.NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
 
-    sum_job_id = job_store.create("summaries")
+    sum_job_id = await job_store.create("summaries")
 
     async def process():
         try:
-            job_store.update(sum_job_id, status=JobStatus.processing, progress=10, phase="summarizing")
+            await job_store.update(sum_job_id, status=JobStatus.processing, progress=10, phase="summarizing")
 
             # Try to use LLM Enhancer for summaries
             summaries = []
@@ -91,7 +91,7 @@ async def generate_summaries(
                                 "keywords": [],
                             })
 
-                        job_store.update(
+                        await job_store.update(
                             sum_job_id,
                             progress=10 + int(80 * (i + 1) / len(chapters)),
                             phase=f"chapter_{i + 1}",
@@ -110,7 +110,7 @@ async def generate_summaries(
 
             _summaries_store[job_id] = summaries
 
-            job_store.update(
+            await job_store.update(
                 sum_job_id,
                 status=JobStatus.completed,
                 progress=100,
@@ -118,7 +118,7 @@ async def generate_summaries(
                 result={"summaries_count": len(summaries)},
             )
         except Exception as e:
-            job_store.update(sum_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(sum_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": sum_job_id, "message": "Génération des résumés démarrée"}

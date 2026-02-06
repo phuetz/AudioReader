@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BookOpen, Play, ChevronDown, ChevronUp, Sparkles, Volume2, FileText, Shield, Clock } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { BookOpen, Play, ChevronDown, ChevronUp, Sparkles, Volume2, FileText, Shield, Clock, GripVertical, Scissors } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import DropZone from '../components/ui/DropZone'
@@ -45,16 +45,26 @@ export default function BookConversionPage() {
   const [enableACX, setEnableACX] = useState(settings.enableACXCompliance)
   const [acxLufs, setACXLufs] = useState(settings.acxTargetLufs)
 
+  // Chapter editing
+  const [editableChapters, setEditableChapters] = useState<string[]>([])
+  const [editingChapter, setEditingChapter] = useState<number | null>(null)
+  const [chapterEditText, setChapterEditText] = useState('')
+
   // Job state
   const [jobId, setJobId] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const initChapters = useCallback((chapters: string[]) => {
+    setEditableChapters([...chapters])
+  }, [])
 
   const handleFile = async (file: File) => {
     const res = await upload(file)
     if (res) {
       toast.success(`Fichier "${res.original_name}" uploadé`)
       setTitle(file.name.replace(/\.[^.]+$/, ''))
+      if (res.chapters) initChapters(res.chapters)
     }
   }
 
@@ -124,7 +134,46 @@ export default function BookConversionPage() {
                   chapterCount={uploadResult.chapters?.length || 0}
                   textPreview={uploadResult.text_preview}
                 />
-                {uploadResult.chapters && <ChapterList chapters={uploadResult.chapters} />}
+                {editableChapters.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs text-muted font-medium mb-2">Chapitres ({editableChapters.length}) — cliquer pour éditer</p>
+                    {editableChapters.map((ch, i) => (
+                      <div key={i} className="flex items-center gap-2 group">
+                        <GripVertical className="w-3 h-3 text-muted opacity-0 group-hover:opacity-100" />
+                        {editingChapter === i ? (
+                          <input
+                            value={chapterEditText}
+                            onChange={e => setChapterEditText(e.target.value)}
+                            onBlur={() => {
+                              const updated = [...editableChapters]
+                              updated[i] = chapterEditText
+                              setEditableChapters(updated)
+                              setEditingChapter(null)
+                            }}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                            autoFocus
+                            className="flex-1 px-2 py-1 rounded bg-panel border border-accent text-primary text-sm"
+                          />
+                        ) : (
+                          <span
+                            className="flex-1 text-sm text-secondary cursor-pointer hover:text-primary px-2 py-1 rounded hover:bg-panel"
+                            onClick={() => { setEditingChapter(i); setChapterEditText(ch) }}
+                          >
+                            {ch}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setEditableChapters(prev => prev.filter((_, idx) => idx !== i))}
+                          className="opacity-0 group-hover:opacity-100 text-xs text-muted hover:text-red p-1"
+                          title="Supprimer"
+                        >
+                          <Scissors className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!editableChapters.length && uploadResult.chapters && <ChapterList chapters={uploadResult.chapters} />}
               </div>
             )}
           </Card>

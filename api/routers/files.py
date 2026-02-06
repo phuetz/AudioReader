@@ -1,15 +1,19 @@
-"""Endpoints fichiers : upload avec conversion auto, listing, téléchargement."""
+"""Endpoints fichiers : upload avec conversion auto, listing paginé, téléchargement, batch export."""
 from __future__ import annotations
 
+import io
+import zipfile
 from datetime import datetime
 from pathlib import Path
+from typing import List
 
 from fastapi import APIRouter, File, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
 
 from api.dependencies import OUTPUT_DIR, file_store
 from api.errors import APIError, ErrorCode
-from api.models import FileInfo, UploadResponse
+from api.models import FileInfo, PaginatedFiles, UploadResponse
 
 router = APIRouter(prefix="/api/v2", tags=["Files"])
 
@@ -73,16 +77,16 @@ async def upload_file(file: UploadFile = File(...)):
     return response
 
 
-@router.get("/files")
-async def list_files(extension: str = None):
-    """Liste les fichiers audio générés dans output/."""
-    files: list[FileInfo] = []
+@router.get("/files", response_model=PaginatedFiles)
+async def list_files(extension: str = None, offset: int = 0, limit: int = 50):
+    """Liste les fichiers audio générés dans output/ avec pagination."""
+    all_files: list[FileInfo] = []
     patterns = [f"*.{extension}"] if extension else ["*.wav", "*.mp3", "*.m4b"]
 
     for pattern in patterns:
         for f in OUTPUT_DIR.glob(pattern):
             stat = f.stat()
-            files.append(FileInfo(
+            all_files.append(FileInfo(
                 id=f.stem,
                 name=f.name,
                 path=str(f),
@@ -92,8 +96,31 @@ async def list_files(extension: str = None):
                 download_url=f"/output/{f.name}",
             ))
 
-    files.sort(key=lambda x: x.created_at, reverse=True)
-    return {"files": files, "total": len(files)}
+    all_files.sort(key=lambda x: x.created_at, reverse=True)
+    total = len(all_files)
+    page = all_files[offset:offset + limit]
+    return PaginatedFiles(files=page, total=total, offset=offset, limit=limit)
+
+
+class BatchExportRequest(BaseModel):
+    filenames: List[str]
+
+
+@router.post("/files/batch-export")
+async def batch_export(request: BatchExportRequest):
+    """Exporte plusieurs fichiers dans un ZIP."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in request.filenames:
+            path = OUTPUT_DIR / name
+            if path.exists() and path.is_file():
+                zf.write(path, name)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=audioreader_export.zip"},
+    )
 
 
 @router.get("/files/{filename}")

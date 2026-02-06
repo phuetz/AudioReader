@@ -73,8 +73,10 @@ export const generatePreview = (params: {
 
 // ── Jobs ────────────────────────────────────────────────────────────────────
 
-export const getJobs = (status?: string, limit?: number) =>
-  apiClient.get<JobResponse[]>(`${V2}/jobs`, { params: { status, limit } }).then(r => r.data)
+export const getJobs = (status?: string, limit?: number, offset?: number) =>
+  apiClient.get<{ jobs: JobResponse[]; total: number; offset: number; limit: number }>(
+    `${V2}/jobs`, { params: { status, limit, offset } }
+  ).then(r => r.data.jobs)
 
 export const getJob = (jobId: string) =>
   apiClient.get<JobResponse>(`${V2}/jobs/${jobId}`).then(r => r.data)

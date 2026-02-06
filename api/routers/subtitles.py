@@ -35,7 +35,7 @@ async def generate_subtitles(
     job_id: str, options: SubtitleOptions, background_tasks: BackgroundTasks
 ) -> dict:
     """Génère des sous-titres pour un job terminé."""
-    job = job_store.get(job_id)
+    job = await job_store.get(job_id)
     if not job:
         raise APIError(ErrorCode.NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
     if job["status"] != JobStatus.completed:
@@ -50,11 +50,11 @@ async def generate_subtitles(
     if not audio_path.exists():
         raise APIError(ErrorCode.NOT_FOUND, "Fichier audio du job non trouvé")
 
-    sub_job_id = job_store.create("subtitles")
+    sub_job_id = await job_store.create("subtitles")
 
     async def process():
         try:
-            job_store.update(sub_job_id, status=JobStatus.processing, progress=10, phase="generating_subtitles")
+            await job_store.update(sub_job_id, status=JobStatus.processing, progress=10, phase="generating_subtitles")
 
             from src.subtitle_generator import SubtitleGenerator
 
@@ -84,7 +84,7 @@ async def generate_subtitles(
                 success = False
 
             if success:
-                job_store.update(
+                await job_store.update(
                     sub_job_id,
                     status=JobStatus.completed,
                     progress=100,
@@ -96,9 +96,9 @@ async def generate_subtitles(
                     },
                 )
             else:
-                job_store.update(sub_job_id, status=JobStatus.failed, error="Échec de génération des sous-titres")
+                await job_store.update(sub_job_id, status=JobStatus.failed, error="Échec de génération des sous-titres")
         except Exception as e:
-            job_store.update(sub_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(sub_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": sub_job_id, "message": "Génération des sous-titres démarrée"}
@@ -107,7 +107,7 @@ async def generate_subtitles(
 @router.get("/jobs/{job_id}/subtitles")
 async def get_subtitles(job_id: str, format: str = "srt") -> FileResponse:
     """Télécharge les sous-titres d'un job."""
-    job = job_store.get(job_id)
+    job = await job_store.get(job_id)
     if not job:
         raise APIError(ErrorCode.NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
 

@@ -1,4 +1,4 @@
-"""Endpoints jobs : liste, status, SSE stream, annulation."""
+"""Endpoints jobs : liste paginée, status, SSE per-job, SSE global, annulation."""
 from __future__ import annotations
 
 import asyncio
@@ -10,22 +10,24 @@ from fastapi.responses import StreamingResponse
 
 from api.dependencies import job_store
 from api.errors import APIError, ErrorCode
-from api.models import JobResponse, JobStatus
+from api.models import JobResponse, JobStatus, PaginatedJobs
 
 router = APIRouter(prefix="/api/v2", tags=["Jobs"])
 
 
-@router.get("/jobs")
-async def list_jobs(status: Optional[str] = None, limit: int = 50):
-    """Liste tous les jobs, optionnellement filtrés par status."""
-    jobs = job_store.list_all()
-    result = []
-    for jid, j in jobs.items():
-        if status and j["status"] != status:
-            continue
-        result.append(
+@router.get("/jobs", response_model=PaginatedJobs)
+async def list_jobs(
+    status: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 50,
+):
+    """Liste les jobs avec pagination."""
+    jobs_data, total = await job_store.list_all(status=status, offset=offset, limit=limit)
+    items = []
+    for j in jobs_data:
+        items.append(
             JobResponse(
-                job_id=jid,
+                job_id=j.get("job_id", ""),
                 status=j["status"],
                 progress=j["progress"],
                 phase=j.get("phase"),
@@ -35,15 +37,13 @@ async def list_jobs(status: Optional[str] = None, limit: int = 50):
                 updated_at=j.get("updated_at", ""),
             )
         )
-    # Plus récents en premier
-    result.sort(key=lambda j: j.created_at, reverse=True)
-    return result[:limit]
+    return PaginatedJobs(jobs=items, total=total, offset=offset, limit=limit)
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(job_id: str):
     """Status d'un job spécifique."""
-    j = job_store.get(job_id)
+    j = await job_store.get(job_id)
     if not j:
         raise APIError(ErrorCode.JOB_NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
     return JobResponse(
@@ -61,7 +61,7 @@ async def get_job(job_id: str):
 @router.get("/jobs/{job_id}/events")
 async def job_events(job_id: str, request: Request):
     """SSE stream temps réel pour un job."""
-    j = job_store.get(job_id)
+    j = await job_store.get(job_id)
     if not j:
         raise APIError(ErrorCode.JOB_NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
 
@@ -69,7 +69,7 @@ async def job_events(job_id: str, request: Request):
         queue = job_store.subscribe(job_id)
         try:
             # Envoyer l'état initial
-            initial = job_store.get(job_id)
+            initial = await job_store.get(job_id)
             if initial:
                 yield _format_sse(_make_event(job_id, initial))
 
@@ -107,13 +107,44 @@ async def job_events(job_id: str, request: Request):
     )
 
 
+@router.get("/events")
+async def global_events(request: Request):
+    """SSE stream global — tous les changements de jobs."""
+    async def event_stream():
+        queue = job_store.subscribe_global()
+        try:
+            heartbeat_counter = 0
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    update = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    job_id = update.get("job_id", "")
+                    yield _format_sse(_make_event(job_id, update))
+                except asyncio.TimeoutError:
+                    heartbeat_counter += 1
+                    yield f"event: heartbeat\ndata: {json.dumps({'tick': heartbeat_counter})}\n\n"
+        finally:
+            job_store.unsubscribe_global(queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
     """Annule un job en cours."""
-    if not job_store.get(job_id):
+    if not await job_store.get(job_id):
         raise APIError(ErrorCode.JOB_NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
 
-    ok = job_store.cancel(job_id)
+    ok = await job_store.cancel(job_id)
     if not ok:
         raise APIError(ErrorCode.JOB_ALREADY_CANCELLED, "Job déjà terminé ou annulé")
 

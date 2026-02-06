@@ -24,15 +24,15 @@ router = APIRouter(prefix="/api/v2", tags=["Generation"])
 @router.post("/generate", response_model=JobCreatedResponse)
 async def generate_audio(request: GenerateRequest, background_tasks: BackgroundTasks):
     """TTS simple — retourne un job_id pour suivi SSE."""
-    job_id = job_store.create("generate")
+    job_id = await job_store.create("generate")
 
     async def process():
         try:
-            job_store.update(job_id, status=JobStatus.processing, progress=10, phase="init")
+            await job_store.update(job_id, status=JobStatus.processing, progress=10, phase="init")
             tts = get_tts_engine()
-            job_store.update(job_id, progress=30, phase="synthesis")
+            await job_store.update(job_id, progress=30, phase="synthesis")
 
-            if job_store.is_cancelled(job_id):
+            if await job_store.is_cancelled(job_id):
                 return
 
             audio, sample_rate = tts.synthesize(
@@ -41,7 +41,7 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
                 speed=request.speed,
                 lang=request.language,
             )
-            job_store.update(job_id, progress=80, phase="saving")
+            await job_store.update(job_id, progress=80, phase="saving")
 
             output_name = request.output_name or f"audio_{job_id}"
             output_path = OUTPUT_DIR / f"{output_name}.wav"
@@ -50,7 +50,7 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
             sf.write(str(output_path), audio, sample_rate)
 
             duration = len(audio) / sample_rate
-            job_store.update(
+            await job_store.update(
                 job_id,
                 status=JobStatus.completed,
                 progress=100,
@@ -62,7 +62,7 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
                 },
             )
         except Exception as e:
-            job_store.update(job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return JobCreatedResponse(job_id=job_id, message="Génération démarrée")
@@ -74,7 +74,7 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
     if not request.text and not request.file_id:
         raise APIError(ErrorCode.VALIDATION_ERROR, "text ou file_id requis")
 
-    job_id = job_store.create("audiobook")
+    job_id = await job_store.create("audiobook")
 
     async def process():
         try:
@@ -84,11 +84,11 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
                 from api.dependencies import file_store
                 path = file_store.get_path(request.file_id)
                 if not path:
-                    job_store.update(job_id, status=JobStatus.failed, error="Fichier non trouvé")
+                    await job_store.update(job_id, status=JobStatus.failed, error="Fichier non trouvé")
                     return
                 text = path.read_text(encoding="utf-8")
 
-            job_store.update(job_id, status=JobStatus.processing, progress=5, phase="pipeline_init")
+            await job_store.update(job_id, status=JobStatus.processing, progress=5, phase="pipeline_init")
 
             from src.hq_pipeline_extended import create_extended_pipeline
 
@@ -114,12 +114,12 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
                 enable_acx_compliance=request.enable_acx_compliance,
                 acx_target_lufs=request.acx_target_lufs,
             )
-            job_store.update(job_id, progress=15, phase="text_analysis")
+            await job_store.update(job_id, progress=15, phase="text_analysis")
 
             segments = pipeline.process_chapter(text, chapter_index=0)
-            job_store.update(job_id, progress=30, phase="synthesis", segments_total=len(segments))
+            await job_store.update(job_id, progress=30, phase="synthesis", segments_total=len(segments))
 
-            if job_store.is_cancelled(job_id):
+            if await job_store.is_cancelled(job_id):
                 return
 
             tts = get_tts_engine()
@@ -127,7 +127,7 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
             total_segs = len(segments)
 
             for i, seg in enumerate(segments):
-                if job_store.is_cancelled(job_id):
+                if await job_store.is_cancelled(job_id):
                     return
                 audio, sr = tts.synthesize(
                     text=seg.text,
@@ -136,14 +136,14 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
                     lang=request.language,
                 )
                 audios.append(audio)
-                job_store.update(
+                await job_store.update(
                     job_id,
                     progress=30 + int(50 * (i + 1) / total_segs),
                     phase="synthesis",
                     segments_done=i + 1,
                 )
 
-            job_store.update(job_id, progress=85, phase="assembly")
+            await job_store.update(job_id, progress=85, phase="assembly")
 
             import numpy as np
             from src.bio_acoustics import BioAudioGenerator
@@ -159,7 +159,7 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
             result_parts.append(bio_gen.generate_silence(1.0))
 
             full_audio = np.concatenate(result_parts)
-            job_store.update(job_id, progress=90, phase="saving")
+            await job_store.update(job_id, progress=90, phase="saving")
 
             output_path = OUTPUT_DIR / f"{request.title}.wav"
             import soundfile as sf
@@ -168,7 +168,7 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
             duration = len(full_audio) / 24000
             characters = pipeline.get_characters()
 
-            job_store.update(
+            await job_store.update(
                 job_id,
                 status=JobStatus.completed,
                 progress=100,
@@ -183,7 +183,7 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
                 },
             )
         except Exception as e:
-            job_store.update(job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return JobCreatedResponse(job_id=job_id, message="Génération audiobook démarrée")
@@ -192,11 +192,11 @@ async def generate_audiobook(request: AudiobookRequest, background_tasks: Backgr
 @router.post("/preview", response_model=JobCreatedResponse)
 async def generate_preview(request: PreviewRequest, background_tasks: BackgroundTasks):
     """Génère un preview 30s — retourne un job_id."""
-    job_id = job_store.create("preview")
+    job_id = await job_store.create("preview")
 
     async def process():
         try:
-            job_store.update(job_id, status=JobStatus.processing, progress=10, phase="preview")
+            await job_store.update(job_id, status=JobStatus.processing, progress=10, phase="preview")
 
             from src.preview_generator import generate_quick_preview
 
@@ -212,7 +212,7 @@ async def generate_preview(request: PreviewRequest, background_tasks: Background
             if success:
                 import soundfile as sf
                 info = sf.info(str(output_path))
-                job_store.update(
+                await job_store.update(
                     job_id,
                     status=JobStatus.completed,
                     progress=100,
@@ -224,9 +224,9 @@ async def generate_preview(request: PreviewRequest, background_tasks: Background
                     },
                 )
             else:
-                job_store.update(job_id, status=JobStatus.failed, error=msg)
+                await job_store.update(job_id, status=JobStatus.failed, error=msg)
         except Exception as e:
-            job_store.update(job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return JobCreatedResponse(job_id=job_id, message="Génération preview démarrée")

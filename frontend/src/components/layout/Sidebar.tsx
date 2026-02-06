@@ -2,8 +2,10 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Type, BookOpen, Users, Mic, Shield, BookA, FolderKanban, Radio,
   FolderOpen, Settings, ChevronLeft, ChevronRight, Headphones, ListOrdered, Sliders,
+  Sun, Moon,
 } from 'lucide-react'
 import { useState } from 'react'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,10 +25,11 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
+  const { theme, toggleTheme } = useSettingsStore()
 
   return (
     <aside
-      className={`flex flex-col bg-surface border-r border-border transition-all duration-200 ${
+      className={`hidden md:flex flex-col bg-surface border-r border-border transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-56'
       }`}
     >
@@ -57,13 +60,48 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Collapse toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center justify-center h-10 border-t border-border text-muted hover:text-primary transition-colors"
-      >
-        {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-      </button>
+      {/* Theme toggle + collapse */}
+      <div className="border-t border-border">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-muted hover:text-primary transition-colors"
+          title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
+          {!collapsed && <span>{theme === 'dark' ? 'Mode clair' : 'Mode sombre'}</span>}
+        </button>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center justify-center w-full h-10 text-muted hover:text-primary transition-colors"
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+      </div>
     </aside>
+  )
+}
+
+/** Mobile bottom tab bar */
+export function MobileTabBar() {
+  const MOBILE_ITEMS = NAV_ITEMS.slice(0, 5) // Show first 5 items
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border flex justify-around py-1">
+      {MOBILE_ITEMS.map(({ to, icon: Icon, label }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={to === '/'}
+          className={({ isActive }) =>
+            `flex flex-col items-center gap-0.5 px-2 py-1.5 text-xs transition-colors ${
+              isActive ? 'text-accent' : 'text-muted'
+            }`
+          }
+        >
+          <Icon className="w-5 h-5" />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
   )
 }

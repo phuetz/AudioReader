@@ -1,4 +1,4 @@
-"""File d'attente de projets — batch processing séquentiel."""
+"""File d'attente de projets — batch processing avec workers parallèles."""
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +14,10 @@ from api.errors import APIError, ErrorCode
 from api.models import JobStatus
 
 router = APIRouter(prefix="/api/v2", tags=["Queue"])
+
+# ── Nombre max de workers parallèles ──
+MAX_WORKERS = 2
+_semaphore = asyncio.Semaphore(MAX_WORKERS)
 
 
 class QueuedJob(BaseModel):
@@ -31,7 +35,7 @@ class QueuedJob(BaseModel):
 
 
 class QueueAddRequest(BaseModel):
-    file_id: str
+    file_id: str = Field(..., min_length=1)
     title: str = ""
     config: dict = {}
     priority: int = Field(default=0, ge=0, le=10)
@@ -48,12 +52,13 @@ class QueueStatus(BaseModel):
     failed: List[QueuedJob]
     paused: bool
     total: int
+    max_workers: int = MAX_WORKERS
 
 
 # In-memory queue state
 _queue: list[dict] = []
 _paused: bool = False
-_worker_task: Optional[asyncio.Task] = None
+_worker_tasks: list[asyncio.Task] = []
 
 
 def _get_by_status(status: str) -> list[dict]:
@@ -79,6 +84,7 @@ async def get_queue() -> QueueStatus:
         failed=[QueuedJob(**q) for q in failed],
         paused=_paused,
         total=len(_queue),
+        max_workers=MAX_WORKERS,
     )
 
 
@@ -158,34 +164,27 @@ async def clear_completed() -> dict:
 
 def _ensure_worker():
     """Démarre le worker si nécessaire."""
-    global _worker_task
-    if _worker_task is None or _worker_task.done():
+    global _worker_tasks
+    # Clean done tasks
+    _worker_tasks = [t for t in _worker_tasks if not t.done()]
+    if not _worker_tasks:
         try:
             loop = asyncio.get_event_loop()
-            _worker_task = loop.create_task(_worker_loop())
+            task = loop.create_task(_worker_loop())
+            _worker_tasks.append(task)
         except RuntimeError:
             pass
 
 
-async def _worker_loop():
-    """Boucle du worker qui traite la queue."""
-    while True:
-        if _paused:
-            await asyncio.sleep(2)
-            continue
-
-        waiting = _get_by_status("waiting")
-        if not waiting:
-            await asyncio.sleep(2)
-            continue
-
-        item = waiting[0]
+async def _process_item(item: dict):
+    """Traite un item de la queue avec le semaphore."""
+    async with _semaphore:
         item["status"] = "processing"
         item["started_at"] = datetime.now().isoformat()
 
         try:
             # Create a generation job
-            gen_job_id = job_store.create("audiobook")
+            gen_job_id = await job_store.create("audiobook")
             item["job_id"] = gen_job_id
 
             # Read file and generate
@@ -195,7 +194,7 @@ async def _worker_loop():
                 raise FileNotFoundError(f"Fichier {item['file_id']} non trouvé")
 
             text = path.read_text(encoding="utf-8")
-            job_store.update(gen_job_id, status=JobStatus.processing, progress=5, phase="queue_processing")
+            await job_store.update(gen_job_id, status=JobStatus.processing, progress=5, phase="queue_processing")
 
             tts = None
             try:
@@ -212,17 +211,15 @@ async def _worker_loop():
 
                 audio, sr = tts.synthesize(text=text[:2000], voice=voice, speed=speed, lang=lang)
 
-                output_name = f"queue_{item['id']}.wav"
-                output_path = __import__("pathlib").Path(str(job_store._jobs.get("__output_dir", ""))) if False else None
-
                 from api.dependencies import OUTPUT_DIR
+                output_name = f"queue_{item['id']}.wav"
                 output_path = OUTPUT_DIR / output_name
 
                 import soundfile as sf
                 sf.write(str(output_path), audio, sr)
 
                 duration = len(audio) / sr
-                job_store.update(
+                await job_store.update(
                     gen_job_id,
                     status=JobStatus.completed,
                     progress=100,
@@ -242,6 +239,28 @@ async def _worker_loop():
             item["error"] = str(e)
             item["completed_at"] = datetime.now().isoformat()
             if item.get("job_id"):
-                job_store.update(item["job_id"], status=JobStatus.failed, error=str(e))
+                await job_store.update(item["job_id"], status=JobStatus.failed, error=str(e))
+
+
+async def _worker_loop():
+    """Boucle du worker qui traite la queue avec des workers parallèles."""
+    while True:
+        if _paused:
+            await asyncio.sleep(2)
+            continue
+
+        waiting = _get_by_status("waiting")
+        if not waiting:
+            await asyncio.sleep(2)
+            continue
+
+        # Lancer jusqu'à MAX_WORKERS items en parallèle
+        tasks = []
+        for item in waiting[:MAX_WORKERS]:
+            task = asyncio.create_task(_process_item(item))
+            tasks.append(task)
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         await asyncio.sleep(1)

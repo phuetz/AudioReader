@@ -63,7 +63,7 @@ class VoicePreviewRequest(BaseModel):
 
 
 class VoiceCloneRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
     language: str = "fr"
 
 
@@ -126,7 +126,7 @@ class PreviewRequest(BaseModel):
 class JobResponse(BaseModel):
     job_id: str
     status: JobStatus
-    progress: float = 0
+    progress: float = Field(default=0, ge=0, le=100)
     phase: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
@@ -202,7 +202,7 @@ class AnalysisResult(BaseModel):
 # ── Projets ──────────────────────────────────────────────────────────────────
 
 class ProjectCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
     description: str = ""
 
 
@@ -261,3 +261,19 @@ class ConfigResponse(BaseModel):
 class SSEEvent(BaseModel):
     event: str
     data: Dict[str, Any]
+
+
+# ── Réponses paginées ────────────────────────────────────────────────────────
+
+class PaginatedJobs(BaseModel):
+    jobs: List[JobResponse]
+    total: int = Field(ge=0)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class PaginatedFiles(BaseModel):
+    files: List[FileInfo]
+    total: int = Field(ge=0)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=50, ge=1, le=200)

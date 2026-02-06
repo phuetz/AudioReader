@@ -2,7 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LLMProvider, NarrationStyle, SubtitleFormat } from '../api/types'
 
+export type Theme = 'dark' | 'light'
+
 interface SettingsState {
+  // Theme
+  theme: Theme
+  toggleTheme: () => void
+
   // Basic
   language: string
   defaultVoice: string
@@ -60,7 +66,15 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      // Theme
+      theme: 'dark' as Theme,
+      toggleTheme: () => {
+        const next = get().theme === 'dark' ? 'light' : 'dark'
+        document.documentElement.classList.toggle('light', next === 'light')
+        set({ theme: next })
+      },
+
       // Basic defaults
       language: 'fr',
       defaultVoice: 'ff_siwis',

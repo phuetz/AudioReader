@@ -31,7 +31,7 @@ class ConsistencyReport(BaseModel):
 @router.post("/jobs/{job_id}/consistency")
 async def analyze_consistency(job_id: str) -> ConsistencyReport:
     """Analyse les incohérences dans un job."""
-    job = job_store.get(job_id)
+    job = await job_store.get(job_id)
     if not job:
         raise APIError(ErrorCode.NOT_FOUND, f"Job {job_id} non trouvé", status_code=404)
 

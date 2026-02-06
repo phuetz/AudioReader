@@ -36,9 +36,9 @@ class ExportResultResponse(BaseModel):
     message: str = ""
 
 
-def _find_job_audio(job_id: str) -> Optional[Path]:
+async def _find_job_audio(job_id: str) -> Optional[Path]:
     """Trouve le fichier audio d'un job terminé."""
-    job = job_store.get(job_id)
+    job = await job_store.get(job_id)
     if not job or job["status"] != JobStatus.completed:
         return None
     result = job.get("result", {})
@@ -52,15 +52,15 @@ def _find_job_audio(job_id: str) -> Optional[Path]:
 @router.post("/export/spotify")
 async def export_for_spotify(request: ExportRequest, background_tasks: BackgroundTasks) -> dict:
     """Export MP3 320kbps optimisé Spotify (-14 LUFS)."""
-    audio_path = _find_job_audio(request.job_id)
+    audio_path = await _find_job_audio(request.job_id)
     if not audio_path:
         raise APIError(ErrorCode.NOT_FOUND, "Audio du job non trouvé", status_code=404)
 
-    export_job_id = job_store.create("export_spotify")
+    export_job_id = await job_store.create("export_spotify")
 
     async def process():
         try:
-            job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
+            await job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
 
             from src.platform_exporter import PlatformExporter, ExportMetadata
 
@@ -89,7 +89,7 @@ async def export_for_spotify(request: ExportRequest, background_tasks: Backgroun
                 error=None if result.success else result.message,
             )
         except Exception as e:
-            job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": export_job_id, "message": "Export Spotify démarré"}
@@ -98,15 +98,15 @@ async def export_for_spotify(request: ExportRequest, background_tasks: Backgroun
 @router.post("/export/youtube")
 async def export_for_youtube(request: YouTubeExportRequest, background_tasks: BackgroundTasks) -> dict:
     """Export MP4 avec waveform pour YouTube."""
-    audio_path = _find_job_audio(request.job_id)
+    audio_path = await _find_job_audio(request.job_id)
     if not audio_path:
         raise APIError(ErrorCode.NOT_FOUND, "Audio du job non trouvé", status_code=404)
 
-    export_job_id = job_store.create("export_youtube")
+    export_job_id = await job_store.create("export_youtube")
 
     async def process():
         try:
-            job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
+            await job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
 
             from src.platform_exporter import PlatformExporter, ExportMetadata
 
@@ -138,7 +138,7 @@ async def export_for_youtube(request: YouTubeExportRequest, background_tasks: Ba
                 error=None if result.success else result.message,
             )
         except Exception as e:
-            job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": export_job_id, "message": "Export YouTube démarré"}
@@ -147,15 +147,15 @@ async def export_for_youtube(request: YouTubeExportRequest, background_tasks: Ba
 @router.post("/export/podcast")
 async def export_for_podcast(request: ExportRequest, background_tasks: BackgroundTasks) -> dict:
     """Export MP3 optimisé podcast (-16 LUFS, mono)."""
-    audio_path = _find_job_audio(request.job_id)
+    audio_path = await _find_job_audio(request.job_id)
     if not audio_path:
         raise APIError(ErrorCode.NOT_FOUND, "Audio du job non trouvé", status_code=404)
 
-    export_job_id = job_store.create("export_podcast")
+    export_job_id = await job_store.create("export_podcast")
 
     async def process():
         try:
-            job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
+            await job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
 
             from src.platform_exporter import PlatformExporter, ExportMetadata
 
@@ -184,7 +184,7 @@ async def export_for_podcast(request: ExportRequest, background_tasks: Backgroun
                 error=None if result.success else result.message,
             )
         except Exception as e:
-            job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": export_job_id, "message": "Export Podcast démarré"}
@@ -193,15 +193,15 @@ async def export_for_podcast(request: ExportRequest, background_tasks: Backgroun
 @router.post("/export/audible")
 async def export_for_audible(request: ExportRequest, background_tasks: BackgroundTasks) -> dict:
     """Export ACX-compliant pour Audible."""
-    audio_path = _find_job_audio(request.job_id)
+    audio_path = await _find_job_audio(request.job_id)
     if not audio_path:
         raise APIError(ErrorCode.NOT_FOUND, "Audio du job non trouvé", status_code=404)
 
-    export_job_id = job_store.create("export_audible")
+    export_job_id = await job_store.create("export_audible")
 
     async def process():
         try:
-            job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
+            await job_store.update(export_job_id, status=JobStatus.processing, progress=10, phase="exporting")
 
             from src.platform_exporter import PlatformExporter, ExportMetadata
 
@@ -230,7 +230,7 @@ async def export_for_audible(request: ExportRequest, background_tasks: Backgroun
                 error=None if result.success else result.message,
             )
         except Exception as e:
-            job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
+            await job_store.update(export_job_id, status=JobStatus.failed, error=str(e))
 
     background_tasks.add_task(process)
     return {"job_id": export_job_id, "message": "Export Audible démarré"}

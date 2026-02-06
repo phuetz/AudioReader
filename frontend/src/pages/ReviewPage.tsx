@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { Play, Pause, RotateCcw, Save, Layers, AlertTriangle, FileText } from 'lucide-react'
+import { Play, Pause, RotateCcw, Save, Layers, AlertTriangle, FileText, Undo2, Redo2 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Select from '../components/ui/Select'
@@ -43,11 +43,56 @@ export default function ReviewPage() {
   const [showConsistency, setShowConsistency] = useState(false)
   const [subtitleFormat, setSubtitleFormat] = useState('srt')
   const [generatingSubs, setGeneratingSubs] = useState(false)
+  const [currentAudioTime, setCurrentAudioTime] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Undo/redo
+  const [history, setHistory] = useState<ReviewSegment[][]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+
+  const pushHistory = useCallback((segs: ReviewSegment[]) => {
+    setHistory(prev => [...prev.slice(0, historyIndex + 1), segs])
+    setHistoryIndex(prev => prev + 1)
+  }, [historyIndex])
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      setHistoryIndex(prev => prev - 1)
+      setSegments(history[historyIndex - 1])
+    }
+  }, [historyIndex, history])
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(prev => prev + 1)
+      setSegments(history[historyIndex + 1])
+    }
+  }, [historyIndex, history])
 
   useEffect(() => {
     if (jobId) fetchSegments()
   }, [jobId])
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        if (e.shiftKey) { redo(); } else { undo(); }
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [undo, redo])
+
+  // Track audio time for subtitle sync
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    const onTime = () => setCurrentAudioTime(audio.currentTime)
+    audio.addEventListener('timeupdate', onTime)
+    return () => audio.removeEventListener('timeupdate', onTime)
+  }, [])
 
   const fetchSegments = async () => {
     try {
@@ -83,7 +128,9 @@ export default function ReviewPage() {
   const saveEdit = async (segId: string) => {
     try {
       await apiClient.put(`${V2}/jobs/${jobId}/segments/${segId}`, { text: editText })
-      setSegments(prev => prev.map(s => s.id === segId ? { ...s, text: editText } : s))
+      const updated = segments.map(s => s.id === segId ? { ...s, text: editText } : s)
+      pushHistory(updated)
+      setSegments(updated)
       setEditingId(null)
       toast.success('Texte mis à jour')
     } catch {
@@ -171,6 +218,12 @@ export default function ReviewPage() {
           <span className="text-sm font-normal text-muted">Job: {jobId}</span>
         </h1>
         <div className="flex gap-2">
+          <Button variant="ghost" onClick={undo} disabled={historyIndex <= 0} icon={<Undo2 className="w-4 h-4" />}>
+            Annuler
+          </Button>
+          <Button variant="ghost" onClick={redo} disabled={historyIndex >= history.length - 1} icon={<Redo2 className="w-4 h-4" />}>
+            Rétablir
+          </Button>
           <Button variant="ghost" onClick={analyzeConsistency} icon={<AlertTriangle className="w-4 h-4" />}>
             Cohérence
           </Button>
@@ -225,11 +278,16 @@ export default function ReviewPage() {
       {/* Segments list */}
       <div className="space-y-2">
         <p className="text-sm text-muted">{segments.length} segments</p>
-        {segments.map((seg) => (
+        {segments.map((seg) => {
+          // Subtitle sync: estimate if this segment is "current" based on cumulative duration
+          const cumulativeBefore = segments.slice(0, seg.index).reduce((s, x) => s + x.duration, 0)
+          const isActiveSubtitle = playingId && currentAudioTime >= cumulativeBefore && currentAudioTime < cumulativeBefore + seg.duration
+
+          return (
           <div
             key={seg.id}
             className={`bg-surface border rounded-xl p-4 transition-colors ${
-              playingId === seg.id ? 'border-accent' : 'border-border'
+              playingId === seg.id ? 'border-accent' : isActiveSubtitle ? 'border-cyan' : 'border-border'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -289,7 +347,7 @@ export default function ReviewPage() {
               </button>
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
       {segments.length === 0 && !loading && (

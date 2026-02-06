@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
 import FloatingPlayer from './components/global/FloatingPlayer'
+import SearchBar from './components/global/SearchBar'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const QuickTextPage = lazy(() => import('./pages/QuickTextPage'))
@@ -48,6 +49,7 @@ export default function App() {
         </Routes>
       </Suspense>
       <FloatingPlayer />
+      <SearchBar />
     </MainLayout>
   )
 }
