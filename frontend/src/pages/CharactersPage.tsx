@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Search, Sparkles, Save, Trash2 } from 'lucide-react'
+import { Users, Search, Sparkles, Save, Trash2, Download, Upload } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Toggle from '../components/ui/Toggle'
@@ -61,6 +61,45 @@ export default function CharactersPage() {
     } finally {
       setSavingProfile(false)
     }
+  }
+
+  const exportProfiles = () => {
+    const json = JSON.stringify(profiles, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'character-profiles.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`${profiles.length} profils exportés`)
+  }
+
+  const importProfiles = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      try {
+        const text = await file.text()
+        const imported = JSON.parse(text) as CharacterProfile[]
+        if (!Array.isArray(imported)) throw new Error('Format invalide')
+        let count = 0
+        for (const p of imported) {
+          if (p.name && p.voice_id) {
+            await createCharacterProfile({ name: p.name, voice_id: p.voice_id, gender: p.gender || 'M' })
+            count++
+          }
+        }
+        toast.success(`${count} profils importés`)
+        fetchProfiles()
+      } catch {
+        toast.error('Erreur import: fichier JSON invalide')
+      }
+    }
+    input.click()
   }
 
   const handleDeleteProfile = async (id: string) => {
@@ -230,6 +269,14 @@ export default function CharactersPage() {
 
       {activeTab === 'profiles' && (
         <>
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" size="sm" icon={<Upload className="w-4 h-4" />} onClick={importProfiles}>
+              Importer
+            </Button>
+            <Button variant="secondary" size="sm" icon={<Download className="w-4 h-4" />} onClick={exportProfiles} disabled={profiles.length === 0}>
+              Exporter
+            </Button>
+          </div>
           {profilesLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
