@@ -415,6 +415,26 @@ class CharacterDetector:
             print(f"[CharacterDetector] Erreur validation LLM: {e}", file=sys.stderr)
             return None
 
+    def _match_to_profile(self, name: str, profiles: list[dict]) -> Optional[dict]:
+        """
+        Cherche un profil de personnage correspondant au nom détecté.
+
+        Args:
+            name: Le nom détecté dans le texte
+            profiles: Liste de profils (dicts avec 'name', 'aliases', 'voice_id', etc.)
+
+        Returns:
+            Le profil correspondant ou None
+        """
+        name_lower = name.lower().strip()
+        for profile in profiles:
+            if profile.get("name", "").lower() == name_lower:
+                return profile
+            for alias in profile.get("aliases", []):
+                if alias.lower() == name_lower:
+                    return profile
+        return None
+
     def _extract_speaker_name(self, text: str, full_context: str = "") -> tuple[Optional[str], float]:
         """
         Extrait le nom du locuteur à partir du contexte avec score de confiance.

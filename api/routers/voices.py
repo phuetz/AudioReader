@@ -1,14 +1,16 @@
-"""Endpoints voix : liste, preview, clonage."""
+"""Endpoints voix : liste, preview, clonage, presets."""
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
-from api.dependencies import CLONED_VOICES_DIR, OUTPUT_DIR, get_tts_engine
+from api.dependencies import CLONED_VOICES_DIR, DATA_DIR, OUTPUT_DIR, get_tts_engine
 from api.errors import APIError, ErrorCode
 from api.models import VoiceCloneRequest, VoiceInfo, VoicePreviewRequest
 
@@ -181,3 +183,66 @@ async def delete_cloned_voice(voice_id: str):
     meta_path.unlink(missing_ok=True)
     audio_path.unlink(missing_ok=True)
     return {"success": True, "message": f"Voix {voice_id} supprimée"}
+
+
+# ── Voice Presets (v5.1) ────────────────────────────────────────────────────
+
+PRESETS_FILE = DATA_DIR / "voice_presets.json"
+
+
+class VoiceMorphSettings(BaseModel):
+    pitch: float = 0.0
+    formant: float = 0.0
+    speed: float = 1.0
+
+
+class VoicePresetCreate(BaseModel):
+    name: str
+    blend: str = ""
+    morph: VoiceMorphSettings = Field(default_factory=VoiceMorphSettings)
+    description: str = ""
+
+
+def _load_presets() -> list[dict]:
+    if PRESETS_FILE.exists():
+        return json.loads(PRESETS_FILE.read_text(encoding="utf-8"))
+    return []
+
+
+def _save_presets(presets: list[dict]):
+    PRESETS_FILE.write_text(json.dumps(presets, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+@router.get("/voice-presets")
+async def list_voice_presets():
+    """Liste tous les presets de voix sauvegardés."""
+    presets = _load_presets()
+    return {"presets": presets, "total": len(presets)}
+
+
+@router.post("/voice-presets")
+async def create_voice_preset(request: VoicePresetCreate):
+    """Sauvegarde un nouveau preset de voix."""
+    import uuid
+    presets = _load_presets()
+    preset = {
+        "id": uuid.uuid4().hex[:8],
+        "name": request.name,
+        "blend": request.blend,
+        "morph": request.morph.model_dump(),
+        "description": request.description,
+    }
+    presets.append(preset)
+    _save_presets(presets)
+    return preset
+
+
+@router.delete("/voice-presets/{preset_id}")
+async def delete_voice_preset(preset_id: str):
+    """Supprime un preset de voix."""
+    presets = _load_presets()
+    filtered = [p for p in presets if p.get("id") != preset_id]
+    if len(filtered) == len(presets):
+        raise APIError(ErrorCode.NOT_FOUND, f"Preset {preset_id} non trouvé", status_code=404)
+    _save_presets(filtered)
+    return {"success": True, "message": f"Preset {preset_id} supprimé"}

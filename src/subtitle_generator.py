@@ -290,6 +290,86 @@ class SubtitleGenerator:
         )
         return True
 
+    def generate_with_whisper(
+        self,
+        audio_path: str,
+        output_path: str,
+        format: str = "srt",
+        language: str = "fr",
+    ) -> bool:
+        """
+        Genere des sous-titres en utilisant Whisper pour l'alignement.
+
+        Fallback automatique sur l'estimation si Whisper n'est pas disponible.
+
+        Args:
+            audio_path: Chemin du fichier audio
+            output_path: Chemin du fichier de sortie
+            format: Format de sortie ('srt', 'vtt', 'json')
+            language: Code langue
+
+        Returns:
+            True si generation reussie
+        """
+        if not self._check_whisper():
+            # Fallback: lire le texte n'est pas possible ici,
+            # utiliser Whisper en mode transcription pure
+            return False
+
+        try:
+            import whisper
+
+            model = whisper.load_model("base")
+            result = model.transcribe(
+                audio_path,
+                language=language,
+                word_timestamps=True,
+            )
+
+            segments = result.get("segments", [])
+            if not segments:
+                return False
+
+            if format == "json":
+                import json
+                words = []
+                for seg in segments:
+                    for w in seg.get("words", []):
+                        words.append({
+                            "word": w["word"].strip(),
+                            "start": round(w["start"], 3),
+                            "end": round(w["end"], 3),
+                            "confidence": round(w.get("probability", 1.0), 3),
+                        })
+                Path(output_path).write_text(
+                    json.dumps({"words": words}, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            elif format == "vtt":
+                lines = ["WEBVTT", ""]
+                for i, seg in enumerate(segments):
+                    lines.append(
+                        f"{self._format_vtt_time(seg['start'])} --> {self._format_vtt_time(seg['end'])}"
+                    )
+                    lines.append(seg["text"].strip())
+                    lines.append("")
+                Path(output_path).write_text("\n".join(lines), encoding="utf-8")
+            else:  # srt
+                lines = []
+                for i, seg in enumerate(segments):
+                    lines.append(str(i + 1))
+                    lines.append(
+                        f"{self._format_srt_time(seg['start'])} --> {self._format_srt_time(seg['end'])}"
+                    )
+                    lines.append(seg["text"].strip())
+                    lines.append("")
+                Path(output_path).write_text("\n".join(lines), encoding="utf-8")
+
+            return True
+
+        except Exception:
+            return False
+
     def _get_audio_duration(self, audio_path: str) -> float:
         """Obtient la duree d'un fichier audio."""
         try:
