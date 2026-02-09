@@ -1,7 +1,6 @@
 """Tests API v2 — health, upload, jobs paginés, cycle de vie job."""
 import os
 import sys
-import tempfile
 
 import pytest
 
@@ -19,16 +18,21 @@ async def client():
     """Crée un client HTTPX pour tester l'API."""
     import httpx
     from api import create_app
+    from api import database as db_mod
 
     app = create_app()
 
     # Init DB before tests
-    from api.database import init_db
-    await init_db()
+    await db_mod.init_db()
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+    # Close DB connection to avoid hanging threads
+    if db_mod._db is not None:
+        await db_mod._db.close()
+        db_mod._db = None
 
 
 @pytest.mark.anyio

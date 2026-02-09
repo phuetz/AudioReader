@@ -85,7 +85,9 @@ async def analyze_text(request: AnalyzeRequest):
         emotions.append(EmotionInfo(
             text=sent[:60] + ("..." if len(sent) > 60 else ""),
             emotion=emotion_result.emotion.value if emotion_result else "neutral",
-            intensity=round(emotion_result.intensity if emotion_result else 0.5, 2),
+            intensity={"low": 0.25, "medium": 0.5, "high": 0.75, "extreme": 1.0}.get(
+                emotion_result.intensity.value if emotion_result else "medium", 0.5
+            ),
             intonation=contour.value,
         ))
 
