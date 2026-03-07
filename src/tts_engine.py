@@ -139,7 +139,7 @@ class UnifiedTTSEngine:
                             # Tenter un import sans prefixe
                             module = __import__(module_name, fromlist=[class_name])
                             return getattr(module, class_name)
-                    except:
+                    except (ImportError, AttributeError):
                         pass
                     raise
 

@@ -84,11 +84,11 @@ class DynamicVoiceManager:
             return base_voice
 
         # Construire la chaîne de mélange
-        # Kokoro format: "voice_a:weight_a,voice_b:weight_b"
-        base_weight = 1.0 - weight
-        
-        # Arrondir pour propreté
-        return f"{base_voice}:{base_weight:.2f},{target_blend}:{weight:.2f}"
+        # parse_voice_blend attend des poids en pourcentage entier
+        base_pct = int(round((1.0 - weight) * 100))
+        target_pct = 100 - base_pct
+
+        return f"{base_voice}:{base_pct},{target_blend}:{target_pct}"
 
     def get_prosody_modifiers(self, emotion: Emotion, intensity: Intensity) -> dict:
         """Retourne les modificateurs de prosodie (speed, pitch)."""

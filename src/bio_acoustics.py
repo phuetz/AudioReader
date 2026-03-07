@@ -96,6 +96,9 @@ class BioAudioGenerator:
         # mais à niveau réduit (ratio typique pour 1/f)
         pink = pink * 0.7 + white * 0.3
 
+        # Supprimer le DC offset (biais basse fréquence de l'intégration)
+        pink = pink - np.mean(pink)
+
         # Normaliser pour avoir une variance unitaire
         if np.std(pink) > 0:
             pink = pink / np.std(pink)

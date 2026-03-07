@@ -116,16 +116,16 @@ class TestDynamicVoiceManager:
         # Plus d'intensité = plus de poids sur la voix cible
         assert weight_high > weight_low
 
-    def test_weights_sum_to_one(self, manager):
-        """Les poids totalisent 1.0."""
+    def test_weights_sum_to_100(self, manager):
+        """Les poids totalisent 100 (pourcentage entier pour parse_voice_blend)."""
         result = manager.get_voice_config("ff_siwis", Emotion.ANGER, Intensity.HIGH)
 
-        # Extraire les poids
+        # Format: "voice1:70,voice2:30" (pourcentages entiers)
         parts = result.split(",")
-        w1 = float(parts[0].split(":")[1])
-        w2 = float(parts[1].split(":")[1])
+        w1 = int(parts[0].split(":")[1])
+        w2 = int(parts[1].split(":")[1])
 
-        assert abs((w1 + w2) - 1.0) < 0.01
+        assert w1 + w2 == 100
 
     def test_format_is_correct(self, manager):
         """Le format de sortie est correct pour Kokoro."""

@@ -18,7 +18,7 @@ class NumberToWords:
 
     # Francais
     UNITS_FR = ["", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf"]
-    TENS_FR = ["", "dix", "vingt", "trente", "quarante", "cinquante", "soixante", "soixante", "quatre-vingt", "quatre-vingt"]
+    TENS_FR = ["", "dix", "vingt", "trente", "quarante", "cinquante", "soixante", "soixante-dix", "quatre-vingts", "quatre-vingt-dix"]
     TEENS_FR = ["dix", "onze", "douze", "treize", "quatorze", "quinze", "seize", "dix-sept", "dix-huit", "dix-neuf"]
 
     # Anglais

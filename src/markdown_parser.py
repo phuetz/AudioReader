@@ -282,7 +282,7 @@ class EPUBParser:
                 try:
                     content = zf.read(name).decode('utf-8')
                     content_files.append((name, content))
-                except:
+                except (UnicodeDecodeError, KeyError):
                     pass
 
         # Trier par nom de fichier
@@ -306,7 +306,7 @@ class EPUBParser:
         try:
             extractor.feed(html_content)
             return extractor.get_text()
-        except:
+        except (ValueError, TypeError):
             # Fallback: supprimer les tags HTML brutalement
             text = re.sub(r'<[^>]+>', ' ', html_content)
             text = re.sub(r'\s+', ' ', text)

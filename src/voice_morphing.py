@@ -225,13 +225,14 @@ class VoiceMorpher:
         amount = max(0.0, min(1.0, amount))
 
         # Distorsion douce (simule la voix rauque)
-        threshold = 1.0 - (amount * 0.5)
+        threshold = max(0.1, 1.0 - (amount * 0.5))
 
         # Soft clipping
         clipped = np.tanh(audio / threshold) * threshold
 
-        # Mixer avec l'original
-        return audio * (1 - amount * 0.5) + clipped * (amount * 0.5)
+        # Mixer avec l'original et clipper le resultat
+        result = audio * (1 - amount * 0.5) + clipped * (amount * 0.5)
+        return np.clip(result, -1.0, 1.0).astype(np.float32)
 
     def apply_variation(
         self,

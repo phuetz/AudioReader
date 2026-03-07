@@ -589,6 +589,8 @@ class HybridTTSEngine:
                 else:
                     voice = self._get_voice_for_speaker(seg.speaker)
                     audio, sr = kokoro.create(text_seg, voice=voice, speed=1.0, lang='fr-fr')
+                    if sr != sample_rate:
+                        audio = self._resample(audio, sr, sample_rate)
                     all_audio.append(audio)
                     all_audio.append(np.zeros(int(0.3 * sample_rate), dtype=np.float32))
 

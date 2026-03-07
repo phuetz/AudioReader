@@ -282,7 +282,7 @@ class EmotionAnalyzer:
             # Score des mots-cles
             for keyword in data["keywords"]:
                 keyword_norm = self._normalize_text(keyword)
-                if keyword_norm in normalized:
+                if re.search(rf'\b{re.escape(keyword_norm)}\b', normalized):
                     scores[emotion] += 1.0
                     # Bonus si le mot est au debut ou fin
                     if normalized.startswith(keyword_norm) or normalized.endswith(keyword_norm):

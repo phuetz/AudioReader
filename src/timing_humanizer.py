@@ -457,7 +457,7 @@ class TextTimingProcessor:
                     segments.append(current)
                 current = ""
             else:
-                current = part
+                current += part
 
         # Ajouter le reste
         if current.strip():

@@ -108,10 +108,12 @@ class PodcastServer:
         # Déterminer l'IP locale
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            self.ip = s.getsockname()[0]
-            s.close()
-        except:
+            try:
+                s.connect(("8.8.8.8", 80))
+                self.ip = s.getsockname()[0]
+            finally:
+                s.close()
+        except Exception:
             self.ip = "127.0.0.1"
             
         self.base_url = f"http://{self.ip}:{self.port}"

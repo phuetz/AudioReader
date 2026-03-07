@@ -43,7 +43,7 @@ class AudioCrossfader:
             Array de coefficients de 0 a 1
         """
         if length <= 0:
-            return np.array([])
+            return np.array([], dtype=np.float32)
 
         t = np.linspace(0, 1, length)
 
@@ -126,7 +126,15 @@ class AudioCrossfader:
         # Verifier que les segments sont assez longs
         min_samples = int(self.config.min_segment_duration * sample_rate)
         if len(segment1) < min_samples or len(segment2) < min_samples:
-            # Pas de crossfade, simple concatenation
+            # Segments trop courts: appliquer des micro-fades pour eviter les clics
+            micro_fade = min(64, len(segment1) // 4, len(segment2) // 4)
+            if micro_fade > 1:
+                s1 = segment1.copy()
+                s2 = segment2.copy()
+                fade_curve = np.linspace(1.0, 0.0, micro_fade, dtype=np.float32)
+                s1[-micro_fade:] *= fade_curve
+                s2[:micro_fade] *= fade_curve[::-1]
+                return np.concatenate([s1, s2])
             return np.concatenate([segment1, segment2])
 
         # Limiter le crossfade a la taille des segments

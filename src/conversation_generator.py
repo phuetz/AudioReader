@@ -260,7 +260,10 @@ class VoicePool:
             assigned_count = len(self._assigned)
             pool_key = f"{'male' if assigned_count % 2 == 0 else 'female'}_{language}"
 
-        pool = self.voices.get(pool_key, list(self.voices.values())[0])
+        pool = self.voices.get(pool_key)
+        if not pool:
+            all_voices = list(self.voices.values())
+            pool = all_voices[0] if all_voices else ["ff_siwis"]
 
         # Trouver la voix la moins utilisee
         min_usage = float('inf')

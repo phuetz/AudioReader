@@ -19,6 +19,7 @@ import json
 import time
 import hashlib
 import os
+import re
 
 
 class LLMProvider(Enum):
@@ -198,6 +199,17 @@ class LLMEnhancer:
         self._client = None
         self._last_request_time = 0.0
         self._min_request_interval = 0.1  # 100ms entre requêtes
+
+    @staticmethod
+    def _extract_json_str(response: str) -> str:
+        """Extrait un JSON string d'une réponse LLM (gère ```json blocks)."""
+        code_match = re.search(r'```(?:json)?\s*(.*?)\s*```', response, re.DOTALL)
+        if code_match:
+            return code_match.group(1)
+        json_obj_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+        if json_obj_match:
+            return json_obj_match.group()
+        return response
 
     def _init_client(self):
         """Initialise le client LLM selon le provider."""
@@ -403,11 +415,7 @@ Attention aux faux positifs: participes passés (coupé, pointé), adverbes, nom
         if response:
             try:
                 # Extraire le JSON de la réponse
-                json_str = response
-                if "```json" in response:
-                    json_str = response.split("```json")[1].split("```")[0]
-                elif "```" in response:
-                    json_str = response.split("```")[1].split("```")[0]
+                json_str = self._extract_json_str(response)
 
                 data = json.loads(json_str.strip())
                 return CharacterValidation(
@@ -559,11 +567,7 @@ Analyse émotionnelle:"""
 
         if response:
             try:
-                json_str = response
-                if "```json" in response:
-                    json_str = response.split("```json")[1].split("```")[0]
-                elif "```" in response:
-                    json_str = response.split("```")[1].split("```")[0]
+                json_str = self._extract_json_str(response)
 
                 data = json.loads(json_str.strip())
 
@@ -684,11 +688,7 @@ Attribution:"""
 
         if response:
             try:
-                json_str = response
-                if "```json" in response:
-                    json_str = response.split("```json")[1].split("```")[0]
-                elif "```" in response:
-                    json_str = response.split("```")[1].split("```")[0]
+                json_str = self._extract_json_str(response)
 
                 data = json.loads(json_str.strip())
 
@@ -745,11 +745,7 @@ Analyse:"""
 
         if response:
             try:
-                json_str = response
-                if "```json" in response:
-                    json_str = response.split("```json")[1].split("```")[0]
-                elif "```" in response:
-                    json_str = response.split("```")[1].split("```")[0]
+                json_str = self._extract_json_str(response)
 
                 data = json.loads(json_str.strip())
 
@@ -837,11 +833,7 @@ Prosodie:"""
 
         if response:
             try:
-                json_str = response
-                if "```json" in response:
-                    json_str = response.split("```json")[1].split("```")[0]
-                elif "```" in response:
-                    json_str = response.split("```")[1].split("```")[0]
+                json_str = self._extract_json_str(response)
 
                 data = json.loads(json_str.strip())
 

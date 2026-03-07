@@ -299,7 +299,7 @@ class OrpheusTTSEngine(HighQualityTTSEngine):
             import importlib.util
             spec = importlib.util.find_spec("orpheus")
             self._available = spec is not None
-        except:
+        except (ImportError, ModuleNotFoundError, ValueError):
             self._available = False
 
         return self._available

@@ -365,9 +365,11 @@ class ParallelSynthesizer:
         with self._executor_class(max_workers=self.num_workers) as executor:
             # Soumettre les taches
             future_to_idx = {}
+            submit_times = {}
             for idx, seg in to_generate:
                 future = executor.submit(synthesize_fn, seg)
                 future_to_idx[future] = (idx, seg)
+                submit_times[future] = time.time()
 
             # Collecter les resultats
             for future in as_completed(future_to_idx):
@@ -375,16 +377,16 @@ class ParallelSynthesizer:
 
                 try:
                     audio = future.result()
+                    generation_time = time.time() - submit_times[future]
                     results[idx] = audio
 
                     # Ajouter au cache
-                    start_time = time.time()
                     self.cache.put(
                         text=seg['text'],
                         voice_id=seg['voice_id'],
                         speed=seg.get('speed', 1.0),
                         audio_data=audio,
-                        generation_time=time.time() - start_time
+                        generation_time=generation_time
                     )
 
                 except Exception as e:

@@ -13,6 +13,9 @@ from enum import Enum
 
 from .emotion_analyzer import Emotion, Intensity, ProsodyHints
 
+# Mapping numerique pour comparaison correcte des intensites
+_INTENSITY_ORDER = {Intensity.LOW: 0, Intensity.MEDIUM: 1, Intensity.HIGH: 2, Intensity.EXTREME: 3}
+
 
 @dataclass
 class EmotionState:
@@ -254,9 +257,9 @@ class EmotionContinuityManager:
         if emotion == self._current_state.emotion:
             self._current_state.duration += 1
             # Ajuster le momentum
-            if intensity.value > self._current_state.intensity.value:
+            if _INTENSITY_ORDER.get(intensity, 1) > _INTENSITY_ORDER.get(self._current_state.intensity, 1):
                 self._current_state.momentum = min(1.0, self._current_state.momentum + 0.2)
-            elif intensity.value < self._current_state.intensity.value:
+            elif _INTENSITY_ORDER.get(intensity, 1) < _INTENSITY_ORDER.get(self._current_state.intensity, 1):
                 self._current_state.momentum = max(-1.0, self._current_state.momentum - 0.2)
             self._current_state.intensity = intensity
         else:
@@ -359,7 +362,7 @@ class ChapterEmotionTracker:
             self.climax_positions.append(segment_index)
 
         # Mettre a jour l'intensite max
-        if intensity.value > self.max_intensity.value:
+        if _INTENSITY_ORDER.get(intensity, 1) > _INTENSITY_ORDER.get(self.max_intensity, 1):
             self.max_intensity = intensity
 
     def get_dominant_emotion(self) -> Emotion:

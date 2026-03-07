@@ -250,7 +250,7 @@ Analyse l'emotion de ce texte. Retourne le JSON."""
                 clean = clean[:-3]
 
             # Trouver le JSON dans la reponse
-            json_match = re.search(r'\{[^{}]*\}', clean, re.DOTALL)
+            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', clean, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())
 
@@ -356,7 +356,7 @@ Analyse l'emotion de ce texte. Retourne le JSON."""
         # Compter les correspondances
         scores = {}
         for emotion, keywords in emotion_keywords.items():
-            score = sum(1 for kw in keywords if kw in text_lower)
+            score = sum(1 for kw in keywords if re.search(rf'\b{re.escape(kw)}\b', text_lower))
             if score > 0:
                 scores[emotion] = score
 

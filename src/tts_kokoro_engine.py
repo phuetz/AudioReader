@@ -162,6 +162,49 @@ class KokoroEngine:
         self._audio_processor = None
         self._using_gpu = False
 
+    def _get_blended_voice(self, voice_spec: str):
+        """
+        Retourne un tenseur de voix blendé à partir d'une spécification.
+
+        Pour une seule voix, retourne le nom (string).
+        Pour un blend, calcule la moyenne pondérée des tenseurs et la cache.
+        """
+        if voice_spec in self._voice_cache:
+            return self._voice_cache[voice_spec]
+
+        voice_blend = parse_voice_blend(voice_spec)
+
+        # Voix unique: pas besoin de blending
+        if len(voice_blend) == 1:
+            result = voice_blend[0][0]
+            self._voice_cache[voice_spec] = result
+            return result
+
+        # Blending: charger et mixer les tenseurs
+        kokoro = self._load_model()
+        blended = None
+
+        for voice_id, weight in voice_blend:
+            try:
+                style = kokoro.get_voice_style(voice_id)
+                if blended is None:
+                    blended = style * weight
+                else:
+                    blended = blended + style * weight
+            except Exception as e:
+                print(f"    [Warning] Voix '{voice_id}' non trouvée, ignorée: {e}")
+
+        if blended is None:
+            # Fallback: première voix disponible
+            result = voice_blend[0][0]
+        else:
+            result = blended
+            names = "+".join(f"{v}:{w:.0%}" for v, w in voice_blend)
+            print(f"    Voice blend: {names}")
+
+        self._voice_cache[voice_spec] = result
+        return result
+
     def is_available(self) -> bool:
         """Vérifie si Kokoro est disponible."""
         if self._available is not None:
@@ -367,9 +410,8 @@ class KokoroEngine:
             speed = speed or self.speed
             lang = self.get_lang()
 
-            # Parser le voice blend si nécessaire
-            voice_blend = parse_voice_blend(voice)
-            primary_voice = voice_blend[0][0]  # Utiliser la première voix
+            # Obtenir la voix (blendée si nécessaire)
+            blended_voice = self._get_blended_voice(voice)
 
             if add_smart_pauses:
                 # Synthétiser segment par segment avec pauses
@@ -383,9 +425,9 @@ class KokoroEngine:
 
                     # Générer l'audio pour ce segment avec gestion d'erreur
                     try:
-                        samples, sample_rate = kokoro.create(
+                        samples, _sr = kokoro.create(
                             segment_text,
-                            voice=primary_voice,
+                            voice=blended_voice,
                             speed=speed,
                             lang=lang
                         )
@@ -398,15 +440,15 @@ class KokoroEngine:
                         for sub_text in [" ".join(words[:mid]), " ".join(words[mid:])]:
                             if sub_text.strip():
                                 try:
-                                    sub_samples, sample_rate = kokoro.create(
+                                    sub_samples, _sr = kokoro.create(
                                         sub_text,
-                                        voice=primary_voice,
+                                        voice=blended_voice,
                                         speed=speed,
                                         lang=lang
                                     )
                                     all_samples.append(sub_samples)
-                                except Exception:
-                                    print(f"    [Skip] Sous-segment impossible à convertir")
+                                except (IndexError, RuntimeError, ValueError) as sub_e:
+                                    print(f"    [Skip] Sous-segment impossible à convertir: {sub_e}")
 
                     # Ajouter la pause appropriée
                     if pause_type == 'paragraph':
@@ -424,7 +466,7 @@ class KokoroEngine:
                 # Mode simple: synthétiser tout le texte d'un coup
                 final_samples, sample_rate = kokoro.create(
                     text,
-                    voice=primary_voice,
+                    voice=blended_voice,
                     speed=speed,
                     lang=lang
                 )
@@ -454,8 +496,13 @@ class KokoroEngine:
 
             return self._audio_processor.enhance(audio, sample_rate, self.enhance_style)
         except ImportError:
-            # Module non disponible, retourner audio original
-            return audio
+            # Fallback vers NativeAudioEnhancer (scipy/numpy)
+            try:
+                from .audio_enhancer import NativeAudioEnhancer
+                enhancer = NativeAudioEnhancer()
+                return enhancer.enhance(audio, sample_rate)
+            except ImportError:
+                return audio
         except Exception as e:
             print(f"Warning: Enhancement échoué: {e}")
             return audio
@@ -480,13 +527,13 @@ class KokoroEngine:
             speed = speed or self.speed
             lang = self.get_lang()
 
-            voice_blend = parse_voice_blend(voice)
-            primary_voice = voice_blend[0][0]
+            # Obtenir la voix (blendée si nécessaire)
+            blended_voice = self._get_blended_voice(voice)
 
             # Générer l'audio principal
             samples, sample_rate = kokoro.create(
                 text,
-                voice=primary_voice,
+                voice=blended_voice,
                 speed=speed,
                 lang=lang
             )

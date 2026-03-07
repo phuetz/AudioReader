@@ -198,7 +198,7 @@ class NarrativeContextDetector:
 
         # Verbes d'action
         for verb in self.action_verbs:
-            if verb in text_lower:
+            if re.search(rf'\b{re.escape(verb)}\b', text_lower):
                 score += 1
 
         # Phrases courtes = action
@@ -224,7 +224,7 @@ class NarrativeContextDetector:
 
         # Verbes de description
         for verb in self.description_verbs:
-            if verb in text_lower:
+            if re.search(rf'\b{re.escape(verb)}\b', text_lower):
                 score += 1
 
         # Phrases longues = description
@@ -239,7 +239,7 @@ class NarrativeContextDetector:
             score += 0.5
 
         # Absence d'action directe
-        if not any(verb in text_lower for verb in self.action_verbs):
+        if not any(re.search(rf'\b{re.escape(verb)}\b', text_lower) for verb in self.action_verbs):
             score += 0.3
 
         return min(score / 3, 1.0)
@@ -252,7 +252,7 @@ class NarrativeContextDetector:
 
         # Verbes d'introspection
         for verb in self.introspection_verbs:
-            if verb in text_lower:
+            if re.search(rf'\b{re.escape(verb)}\b', text_lower):
                 score += 1
 
         # Marqueurs de pensees

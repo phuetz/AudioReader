@@ -26,6 +26,13 @@ python audio_reader.py livre.md --engine xtts --clone ma_voix.wav
 # Advanced HQ Pipeline with Voice Cloning
 python audio_reader.py livre.md --hq --clone ma_voix.wav --multivoice --master
 
+# Parler TTS (description-based, no reference audio needed)
+python audio_reader.py livre.md --engine parler
+
+# Voice preset (custom blend of Kokoro voices)
+python audio_reader.py livre.md --voice-preset narrateur_calme
+python audio_reader.py --list-presets
+
 # Web interface (Gradio)
 python audio_reader.py --gui
 
@@ -102,11 +109,15 @@ python generate_tome1.py
 - `tts_unified.py` - Wrapper that auto-selects best engine per language
 - `tts_hybrid_engine.py` - Hybrid approach combining engines (with crossfade)
 - `tts_xtts_engine.py` - XTTS-v2 voice cloning engine (requires TTS library)
+- `tts_chatterbox_engine.py` - Chatterbox (Resemble AI) — beats ElevenLabs, voice cloning, emotion
+- `tts_orpheus_engine.py` - Orpheus (Canopy Labs) — native emotion tags, Llama-3B backbone
+- `tts_parler_engine.py` - Parler TTS (HuggingFace) — description-based voice control, multilingual
 
 **Advanced Features (v2.1):**
 - `audio_tags.py` - ElevenLabs-style tags (`[whispers]`, `[laugh]`, etc.)
 - `voice_morphing.py` - Pitch, formant, time stretch modifications
 - `voice_cloning.py` - XTTS-v2 voice cloning
+- `voice_designer.py` - Custom voice creation by tensor interpolation (presets, random walk, blending)
 - `synthesis_cache.py` - Intelligent caching + parallel synthesis
 - `conversation_generator.py` - Multi-speaker dialogue generation
 

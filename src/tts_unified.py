@@ -27,7 +27,10 @@ class TTSEngine(Enum):
     """Moteurs TTS disponibles."""
     KOKORO = "kokoro"
     EDGE_TTS = "edge_tts"
-    AUTO = "auto"  # Sélection automatique selon la langue
+    CHATTERBOX = "chatterbox"  # Resemble AI — bat ElevenLabs
+    ORPHEUS = "orpheus"  # Canopy Labs — emotion naturelle
+    PARLER = "parler"  # Hugging Face — description-based, multilingual
+    AUTO = "auto"  # Selection automatique selon la langue
 
 
 @dataclass
@@ -226,11 +229,12 @@ class EdgeTTSBackend:
 
         # Exécuter async (thread-safe)
         try:
-            # Essayer d'utiliser une boucle existante
             loop = asyncio.get_running_loop()
+            # On est dans un contexte async — lancer dans un nouveau thread
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                audio_bytes = pool.submit(asyncio.run, _synthesize()).result()
+                future = pool.submit(lambda: asyncio.run(_synthesize()))
+                audio_bytes = future.result(timeout=120)
         except RuntimeError:
             # Pas de boucle en cours, utiliser asyncio.run()
             audio_bytes = asyncio.run(_synthesize())
@@ -247,7 +251,9 @@ class EdgeTTSBackend:
 
         # Convertir en numpy array
         samples = np.array(audio_segment.get_array_of_samples(), dtype=np.float32)
-        samples = samples / 32768.0  # Normaliser à [-1, 1]
+        # Normaliser selon la profondeur de bits réelle
+        bit_depth = audio_segment.sample_width * 8
+        samples = samples / (2 ** (bit_depth - 1))  # int16->32768, int24->8388608, etc.
 
         return samples, 24000
 
@@ -307,6 +313,9 @@ class UnifiedTTS:
         # Initialiser les backends
         self._kokoro = KokoroTTSBackend()
         self._edge_tts = EdgeTTSBackend()
+        self._chatterbox = None  # Lazy loading (GPU lourd)
+        self._orpheus = None  # Lazy loading (GPU lourd)
+        self._parler = None  # Lazy loading (GPU lourd)
 
         # Préprocesseur français
         self._french_preprocessor = None
@@ -317,6 +326,48 @@ class UnifiedTTS:
             except ImportError:
                 pass
 
+    def _get_chatterbox(self):
+        """Retourne le backend Chatterbox (lazy loading)."""
+        if self._chatterbox is None:
+            try:
+                from src.tts_chatterbox_engine import ChatterboxEngine
+                self._chatterbox = ChatterboxEngine()
+            except ImportError:
+                try:
+                    from tts_chatterbox_engine import ChatterboxEngine
+                    self._chatterbox = ChatterboxEngine()
+                except ImportError:
+                    return None
+        return self._chatterbox
+
+    def _get_orpheus(self):
+        """Retourne le backend Orpheus (lazy loading)."""
+        if self._orpheus is None:
+            try:
+                from src.tts_orpheus_engine import OrpheusEngine
+                self._orpheus = OrpheusEngine()
+            except ImportError:
+                try:
+                    from tts_orpheus_engine import OrpheusEngine
+                    self._orpheus = OrpheusEngine()
+                except ImportError:
+                    return None
+        return self._orpheus
+
+    def _get_parler(self):
+        """Retourne le backend Parler TTS (lazy loading)."""
+        if self._parler is None:
+            try:
+                from src.tts_parler_engine import ParlerEngine
+                self._parler = ParlerEngine()
+            except ImportError:
+                try:
+                    from tts_parler_engine import ParlerEngine
+                    self._parler = ParlerEngine()
+                except ImportError:
+                    return None
+        return self._parler
+
     def get_available_engines(self) -> List[TTSEngine]:
         """Retourne la liste des moteurs disponibles."""
         engines = []
@@ -324,6 +375,15 @@ class UnifiedTTS:
             engines.append(TTSEngine.KOKORO)
         if self._edge_tts.is_available():
             engines.append(TTSEngine.EDGE_TTS)
+        cb = self._get_chatterbox()
+        if cb and cb.is_available():
+            engines.append(TTSEngine.CHATTERBOX)
+        orph = self._get_orpheus()
+        if orph and orph.is_available():
+            engines.append(TTSEngine.ORPHEUS)
+        parler = self._get_parler()
+        if parler and parler.is_available():
+            engines.append(TTSEngine.PARLER)
         return engines
 
     def get_voices(self, lang: Optional[str] = None, engine: Optional[TTSEngine] = None) -> List[TTSVoice]:
@@ -364,17 +424,38 @@ class UnifiedTTS:
 
         preferred = self.config.lang_preferences.get(lang_base, TTSEngine.KOKORO)
 
-        # Vérifier disponibilité
+        # Vérifier disponibilité du moteur prefere
+        if preferred == TTSEngine.CHATTERBOX:
+            cb = self._get_chatterbox()
+            if cb and cb.is_available():
+                return TTSEngine.CHATTERBOX
+        if preferred == TTSEngine.ORPHEUS:
+            orph = self._get_orpheus()
+            if orph and orph.is_available():
+                return TTSEngine.ORPHEUS
+        if preferred == TTSEngine.PARLER:
+            parler = self._get_parler()
+            if parler and parler.is_available():
+                return TTSEngine.PARLER
         if preferred == TTSEngine.EDGE_TTS and self._edge_tts.is_available():
             return TTSEngine.EDGE_TTS
         if preferred == TTSEngine.KOKORO and self._kokoro.is_available():
             return TTSEngine.KOKORO
 
-        # Fallback
+        # Fallback: Chatterbox > Kokoro > Edge-TTS > Orpheus
+        cb = self._get_chatterbox()
+        if cb and cb.is_available():
+            return TTSEngine.CHATTERBOX
         if self._kokoro.is_available():
             return TTSEngine.KOKORO
         if self._edge_tts.is_available():
             return TTSEngine.EDGE_TTS
+        orph = self._get_orpheus()
+        if orph and orph.is_available():
+            return TTSEngine.ORPHEUS
+        parler = self._get_parler()
+        if parler and parler.is_available():
+            return TTSEngine.PARLER
 
         raise RuntimeError("Aucun moteur TTS disponible")
 
@@ -461,6 +542,15 @@ class UnifiedTTS:
         # Synthétiser
         if selected_engine == TTSEngine.KOKORO:
             return self._kokoro.synthesize(text, voice=voice, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.CHATTERBOX:
+            cb = self._get_chatterbox()
+            return cb.synthesize_array(text, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.ORPHEUS:
+            orph = self._get_orpheus()
+            return orph.synthesize_array(text, voice=voice, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.PARLER:
+            parler = self._get_parler()
+            return parler.synthesize_array(text, voice_description=voice)
         else:
             return self._edge_tts.synthesize(text, voice=voice, speed=speed)
 
@@ -486,6 +576,15 @@ class UnifiedTTS:
 
         if selected_engine == TTSEngine.EDGE_TTS:
             return await self._edge_tts.synthesize_async(text, voice=voice, speed=speed)
+        elif selected_engine == TTSEngine.CHATTERBOX:
+            cb = self._get_chatterbox()
+            return cb.synthesize_array(text, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.ORPHEUS:
+            orph = self._get_orpheus()
+            return orph.synthesize_array(text, voice=voice, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.PARLER:
+            parler = self._get_parler()
+            return parler.synthesize_array(text, voice_description=voice)
         else:
             # Kokoro est synchrone
             return self._kokoro.synthesize(text, voice=voice, speed=speed, lang=lang)

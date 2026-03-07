@@ -95,7 +95,9 @@ ENGINES = {
     "auto": "Selection automatique selon la langue",
     "kokoro": "Kokoro - Voix expressives, rapide (defaut)",
     "mms": "MMS-TTS (Meta) - Qualite native multilingue",
-    "chatterbox": "Chatterbox - Clonage voix, controle emotionnel",
+    "chatterbox": "Chatterbox - Clonage voix, controle emotionnel (bat ElevenLabs)",
+    "orpheus": "Orpheus - Emotion naturelle, tags inline (Llama-3B)",
+    "parler": "Parler TTS - Haute qualite multilangue (Hugging Face)",
     "dia": "Dia 1.6B - Multi-speakers natif",
     "f5": "F5-TTS - Flow matching, CPU-friendly",
     "xtts": "XTTS-v2 - Clonage haute qualite",
@@ -394,7 +396,8 @@ def convert_book(
                 try:
                     if eng == "chatterbox":
                         from src.tts_chatterbox_engine import ChatterboxEngine
-                        if ChatterboxEngine.is_available():
+                        cb = ChatterboxEngine()
+                        if cb.is_available():
                             engine_type = eng
                             break
                     elif eng == "f5":
@@ -598,7 +601,7 @@ Moteurs TTS (tous gratuits):
     parser.add_argument(
         "-e", "--engine",
         default="auto",
-        choices=["auto", "kokoro", "mms", "chatterbox", "dia", "f5", "xtts", "edge"],
+        choices=["auto", "kokoro", "mms", "chatterbox", "orpheus", "parler", "dia", "f5", "xtts", "edge"],
         help="Moteur TTS"
     )
 
@@ -750,6 +753,21 @@ Moteurs TTS (tous gratuits):
         help="Modele LLM (auto-detect si vide). Ex: llama3.2, gpt-4o-mini, gemini-2.5-flash-preview-05-20"
     )
 
+    # --- Voice Designer ---
+    voice_group = parser.add_argument_group("Voice Designer")
+
+    voice_group.add_argument(
+        "--voice-preset",
+        type=str,
+        help="Preset de personnage pour la narration (ex: narrateur_calme, jeune_femme, vieil_homme)"
+    )
+
+    voice_group.add_argument(
+        "--list-presets",
+        action="store_true",
+        help="Afficher les presets de voix personnalisees"
+    )
+
     # --- Utility Options ---
     parser.add_argument(
         "--list-voices",
@@ -791,6 +809,12 @@ Moteurs TTS (tous gratuits):
         from app import create_interface
         demo = create_interface()
         demo.launch()
+        return 0
+
+    # Afficher les presets de voix
+    if args.list_presets:
+        from src.voice_designer import VoiceDesigner
+        VoiceDesigner.list_presets()
         return 0
 
     # Afficher les voix

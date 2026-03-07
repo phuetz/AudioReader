@@ -134,7 +134,7 @@ class FrenchTextPreprocessor:
             if val.is_integer():
                 text = num2words(int(val), lang='fr')
             return f"{text} {currency}"
-        except:
+        except (ValueError, TypeError, OverflowError):
             return match.group(0)
 
     def _convert_time(self, match) -> str:
