@@ -4,165 +4,99 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AudioReader converts Markdown books into high-quality audiobooks using Kokoro-82M TTS. The project features automatic multi-voice character detection, emotion analysis, and broadcast-quality audio post-processing to achieve results comparable to ElevenLabs.
+AudioReader converts Markdown books into high-quality audiobooks using Kokoro-82M TTS. It features automatic multi-voice character detection, emotion analysis, and broadcast-quality audio post-processing. French-focused project — code comments, docstrings, and UI messages are primarily in French.
 
 ## Commands
 
-### Running the Application
+### Python Backend
 
 ```bash
-# Activate virtual environment first
 source venv/bin/activate
 
 # Standard conversion
 python audio_reader.py livre.md
 
-# High-quality pipeline (multi-voice, emotions, post-processing)
+# HQ pipeline (multi-voice, emotions, post-processing)
 python audio_reader.py livre.md --hq --master
 
-# Voice Cloning with XTTS-v2
-python audio_reader.py livre.md --engine xtts --clone ma_voix.wav
+# With LLM enhancement
+python audio_reader.py livre.md --hq --llm-enhance --llm-provider gemini
 
-# Advanced HQ Pipeline with Voice Cloning
-python audio_reader.py livre.md --hq --clone ma_voix.wav --multivoice --master
-
-# Parler TTS (description-based, no reference audio needed)
-python audio_reader.py livre.md --engine parler
-
-# Voice preset (custom blend of Kokoro voices)
-python audio_reader.py livre.md --voice-preset narrateur_calme
-python audio_reader.py --list-presets
-
-# Web interface (Gradio)
+# Gradio web interface (legacy)
 python audio_reader.py --gui
 
-# List available voices
-python audio_reader.py --list-voices
+# API server (FastAPI v2)
+uvicorn api:create_app --reload --port 8000
+# or: python -m api
+```
+
+### Frontend (React)
+
+```bash
+cd frontend
+npm install
+npm run dev          # Vite dev server
+npm run build        # TypeScript check + Vite build
+npm run lint         # ESLint
+npm run test         # Vitest (unit tests)
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
+source venv/bin/activate
+
+# All Python tests
 python run_tests.py
+python run_tests.py -v              # verbose
+python run_tests.py --coverage      # with coverage
 
-# Verbose mode
-python run_tests.py -v
-
-# Specific module tests
+# Single module (available: audio_tags, voice_morphing, cache, emotion_control, conversation, pipeline)
 python run_tests.py --module audio_tags
-python run_tests.py --module voice_morphing
-python run_tests.py --module cache
-python run_tests.py --module emotion_control
-python run_tests.py --module conversation
-python run_tests.py --module pipeline
 
-# Run single test file with pytest
+# Single test file
 pytest tests/test_audio_tags.py -v
 
-# With coverage
-python run_tests.py --coverage
-
-# Test bio-acoustics features
-python tests/test_bio_improvements.py
+# Frontend tests
+cd frontend && npm run test
 ```
 
-### Audio Post-processing
+### After Every Code Change
 
-```bash
-# Apply broadcast mastering to audio files
-python postprocess.py output_folder/
-```
-
-### Batch Generation
-
-```bash
-# Generate all chapters of a book (example script)
-python generate_tome1.py
-```
+Run `python run_tests.py -v` to verify nothing is broken, then test manually with a short file if needed: `python audio_reader.py test.md --hq`
 
 ## Architecture
 
-### Main Entry Point
+Three-tier system: **CLI** → **FastAPI API** → **React Frontend**
 
-- **audio_reader.py**: The unified CLI tool. It supports two modes:
-    1. **Standard Mode**: Single voice, fast processing.
-    2. **HQ Mode** (`--hq`): Multi-voice, emotions, broadcast post-processing.
+### Entry Points
 
-### Core Modules in `src/`
+| Entry | Purpose |
+|-------|---------|
+| `audio_reader.py` | CLI tool (standard mode or `--hq` for full pipeline) |
+| `api/` | FastAPI v2 app factory (`api/__init__.py` → `create_app()`) |
+| `api_server.py` | Legacy standalone API server |
+| `app.py` | Gradio web interface (legacy, 5 tabs) |
+| `mcp_server.py` | MCP server for Claude Desktop integration |
+| `frontend/` | React SPA (Vite + TypeScript + Tailwind + Zustand) |
 
-**Text Processing:**
-- `markdown_parser.py` - Parses MD, multi-file directories, EPUB
-- `text_normalizer.py` - Converts numbers, dates, currencies to words (French)
-- `text_processor.py` - Chunking, pronunciation corrections
-- `french_preprocessor.py` - French-specific text normalization
+### Backend: `src/` Modules
 
-**Character & Emotion:**
-- `character_detector.py` - Detects dialogue and speakers from text patterns (v5.0: LLM validation support)
-- `emotion_analyzer.py` - Sentiment analysis with prosody hints
-- `narrative_context.py` - Detects context type (action, description, suspense)
-- `emotion_continuity.py` - Smooths emotional transitions
+**Text Pipeline:** `markdown_parser.py` → `text_normalizer.py` → `text_processor.py` → `french_preprocessor.py`
 
-**TTS Engines:**
-- `tts_kokoro_engine.py` - Primary TTS (Kokoro-82M), supports voice blending
-- `tts_engine.py` - Edge-TTS fallback
-- `tts_unified.py` - Wrapper that auto-selects best engine per language
-- `tts_hybrid_engine.py` - Hybrid approach combining engines (with crossfade)
-- `tts_xtts_engine.py` - XTTS-v2 voice cloning engine (requires TTS library)
-- `tts_chatterbox_engine.py` - Chatterbox (Resemble AI) — beats ElevenLabs, voice cloning, emotion
-- `tts_orpheus_engine.py` - Orpheus (Canopy Labs) — native emotion tags, Llama-3B backbone
-- `tts_parler_engine.py` - Parler TTS (HuggingFace) — description-based voice control, multilingual
+**Character & Emotion:** `character_detector.py` → `emotion_analyzer.py` → `narrative_context.py` → `emotion_continuity.py` → `dialogue_attribution.py`
 
-**Advanced Features (v2.1):**
-- `audio_tags.py` - ElevenLabs-style tags (`[whispers]`, `[laugh]`, etc.)
-- `voice_morphing.py` - Pitch, formant, time stretch modifications
-- `voice_cloning.py` - XTTS-v2 voice cloning
-- `voice_designer.py` - Custom voice creation by tensor interpolation (presets, random walk, blending)
-- `synthesis_cache.py` - Intelligent caching + parallel synthesis
-- `conversation_generator.py` - Multi-speaker dialogue generation
+**TTS Engines** (all implement similar synthesize interface):
+- `tts_kokoro_engine.py` — Primary engine (Kokoro-82M), supports voice blending
+- `tts_unified.py` — Wrapper that auto-selects best engine per language
+- `tts_hybrid_engine.py` — Combines engines with crossfade
+- Others: `tts_qwen3_engine.py` (Qwen3, 10 langs, cloning+instruct), `tts_xtts_engine.py` (voice cloning), `tts_chatterbox_engine.py`, `tts_orpheus_engine.py`, `tts_parler_engine.py`, `tts_engine.py` (Edge-TTS fallback)
 
-**Bio-Acoustics (v2.2 - "Style ElevenLabs"):**
-- `bio_acoustics.py` - Synthetic biological sounds (breaths, mouth noises, room tone)
-- `dynamic_voice.py` - Emotion-based automatic voice blending
+**Audio Processing:** `audio_enhancer.py` (EQ/compression/loudness), `bio_acoustics.py` (breaths/room tone), `audio_crossfade.py`, `acx_compliance.py` (Audible standards)
 
-**Prosody & Timing (v2.3 - "Style ElevenLabs" amélioré):**
-- `breath_samples.py` - Gestionnaire hybride samples/synthèse pour respirations
-- `intonation_contour.py` - Contours d'intonation phrase-level (déclaratif, question, exclamation)
-- `timing_humanizer.py` - Micro-variations de timing, pauses d'emphase
+**LLM Integration:** `llm_enhancer.py` — Unified pipeline (Ollama/OpenAI/Anthropic/Gemini) for character validation, emotion detection, auto audio tags, dialogue attribution
 
-**Intelligence Avancée (v2.4):**
-- `narration_styles.py` - Styles de narration (formel, conversationnel, dramatique, storytelling)
-- `word_level_control.py` - Contrôle prosodique mot-par-mot (emphase, pitch, vitesse)
-- `dialogue_attribution.py` - Attribution automatique des dialogues aux personnages
-- `acx_compliance.py` - Conformité ACX/Audible (normalisation, peaks, noise floor)
-- `llm_emotion_detector.py` - Détection d'émotion contextuelle par LLM (Ollama/OpenAI)
-
-**LLM Enhancer (v5.0):**
-- `llm_enhancer.py` - Pipeline LLM unifié (Ollama/OpenAI/Anthropic/Gemini 2.5 Flash)
-
-**Pipelines:**
-- `hq_pipeline.py` - Unified HQ processing (v2.0)
-- `hq_pipeline_extended.py` - Extended pipeline with all v2.1+ features, integrates bio-acoustics
-
-**Audio:**
-- `audio_enhancer.py` - EQ, compression, de-essing, loudness normalization
-- `audio_postprocess.py` - Post-processing utilities
-- `audiobook_builder.py` - M4B/MP3 export with ID3 metadata
-- `audio_crossfade.py` - Crossfade transitions between audio segments (cosine curves)
-
-**Corrections:**
-- `corrections_loader.py` - Loads JSON pronunciation glossaries
-- `corrections_conquerants.py` - Book-specific corrections
-- `corrections_ui.py` - Gradio web UI for managing corrections
-
-**Utilities (v2.4):**
-- `preview_generator.py` - Quick 30s preview generation
-- `book_exporter.py` - Export to PDF, EPUB, HTML, TXT
-
-**v3.0 Platform Modules:**
-- `input_converter.py` - Universal file converter (PDF/EPUB → Markdown)
-- `audio_extractor.py` - Video to WAV extraction (ffmpeg) for voice cloning from movies
-- `podcast_server.py` - Local RSS podcast server with QR code generation
+**Pipelines:** `hq_pipeline.py` → `hq_pipeline_extended.py` (full v2.1+ features)
 
 ### HQ Pipeline Flow
 
@@ -173,46 +107,33 @@ Dynamic Voice Blending → TTS Synthesis → Bio-Acoustic Pauses →
 Audio Enhancement → Output
 ```
 
-Key v2.2 additions:
-- **Dynamic Voice Blending**: Auto-mixes voices based on emotion (e.g., anger adds `am_adam` for deeper tone)
-- **Bio-Acoustic Pauses**: Room tone instead of digital silence, synthetic breaths at transitions
+### API v2 (`api/`)
+
+FastAPI app with `create_app()` factory pattern. SQLite persistence via `aiosqlite` (DB at `.audioreader_data/jobs.db`). Routers in `api/routers/`: generation, jobs, voices, files, analysis, podcast, projects, config, streaming, acx, corrections, review, queue, character_profiles, export_platforms, subtitles, summaries, consistency, openai_compat.
+
+### Frontend (`frontend/`)
+
+React 19 SPA with:
+- **Routing:** React Router v7, lazy-loaded pages in `src/pages/`
+- **State:** Zustand stores in `src/stores/` (useJobStore, useVoiceStore, useProjectStore, useCharacterStore, useAudioStore, usePodcastStore, usePlaylistStore, useSettingsStore)
+- **API layer:** Axios client in `src/api/client.ts` (base URL from `VITE_API_URL` env var), endpoints in `src/api/endpoints.ts`, SSE in `src/api/sse.ts`
+- **UI:** Tailwind CSS v4, Lucide React icons, reusable components in `src/components/ui/`
+- **Pages:** Dashboard, QuickText, BookConversion, Characters, VoiceCloning, VoiceLab, ACXAnalysis, Corrections, Projects, Podcast, Files, Settings, Review, Queue
 
 ### Key Data Classes
 
-- `EnrichedSegment` (advanced_preprocessor.py) - Text segment with speaker, emotion, prosody
-- `HQPipelineConfig` (hq_pipeline.py) - Full pipeline configuration
-- `DialogueSegment` (character_detector.py) - Detected dialogue with speaker info
-- `EmotionAnalysis` (emotion_analyzer.py) - Emotion type, intensity, prosody hints
+- `EnrichedSegment` (`advanced_preprocessor.py`) — Text segment with speaker, emotion, prosody
+- `HQPipelineConfig` (`hq_pipeline.py`) — Full pipeline configuration
+- `DialogueSegment` (`character_detector.py`) — Detected dialogue with speaker info
+- `EmotionAnalysis` (`emotion_analyzer.py`) — Emotion type, intensity, prosody hints
 
 ## Voice System
 
-French default: `ff_siwis`
-Voice blend syntax: `"af_bella:60,am_adam:40"` (60% Bella, 40% Adam)
-
-Voices are automatically assigned to detected characters based on gender inference from names.
-
-### Dynamic Voice Blending (v2.2)
-
-`DynamicVoiceManager` automatically adjusts voice mix based on detected emotion:
-
-| Emotion | Blend Target | Effect |
-|---------|--------------|--------|
-| Anger | `am_adam` | Deeper, authoritative |
-| Sadness | `af_bella` | Softer, gentler |
-| Fear | `af_sky` | Unstable, trembling |
-| Joy | `af_nicole` | Brighter, energetic |
-| Suspense | `am_michael` | Calm, measured |
-
-Blend intensity scales with emotion intensity (LOW→EXTREME = 20%→100% of max blend weight).
-
-### Bio-Acoustics (v2.2)
-
-`BioAudioGenerator` replaces digital silence with natural sounds:
-- **Room tone**: Very low white noise instead of 0.0 silence
-- **Breaths**: `soft`, `sharp`, `deep`, `gasp`, `sigh` types with ADSR envelopes
-- **Tag support**: `generate_for_tag()` handles `[gasp]`, `[sigh]`, `[pause]`, etc.
-- **True crossfade**: `apply_crossfade()` overlaps signals with cosine curves
-- **Variable thresholds**: ±30% randomization for natural rhythm
+- French default voice: `ff_siwis`
+- Voice blend syntax: `"af_bella:60,am_adam:40"` (60% Bella, 40% Adam)
+- Voices auto-assigned to detected characters based on gender inference from names
+- `DynamicVoiceManager` adjusts voice mix based on emotion (anger→deeper, sadness→softer, fear→trembling, joy→brighter)
+- Voice presets via `voice_designer.py` (tensor interpolation, random walk, blending)
 
 ## Model Files
 
@@ -220,565 +141,15 @@ Required in project root:
 - `kokoro-v1.0.onnx` (~310 MB)
 - `voices-v1.0.bin` (~27 MB)
 
-## Prosody & Timing (v2.3)
-
-### Advanced Breath Generation
-
-`BioAudioGenerator` v2.3 utilise des techniques avancées:
-- **Bruit rose** (1/f spectrum) au lieu de blanc pour un son plus naturel
-- **Filtrage formant** (F1~500Hz, F2~1500Hz, F3~2500Hz) simulant le tract vocal
-- **Jitter d'amplitude** (±5%) pour des variations micro-temporelles naturelles
-
-Configuration:
-```python
-generator = BioAudioGenerator(sample_rate=24000, use_advanced_breaths=True)
-breath = generator.generate_breath(type="gasp", intensity=0.8)
-```
-
-### Hybrid Breath System
-
-`HybridBreathGenerator` permet d'utiliser des samples audio réels:
-```python
-from src.breath_samples import HybridBreathGenerator
-hybrid = HybridBreathGenerator(samples_dir=Path("samples/breaths"))
-audio = hybrid.generate_breath("sigh")  # Sample si disponible, sinon synthèse
-```
-
-Structure des samples (optionnel):
-```
-samples/breaths/
-├── soft/
-├── gasp/
-├── sigh/
-└── deep/
-```
-
-### Intonation Contours
-
-`IntonationProcessor` détecte et applique les contours prosodiques:
-
-| Type | Pattern | Exemple |
-|------|---------|---------|
-| DECLARATIVE | Descente finale (-2.5 st) | "Il est parti." |
-| QUESTION_YN | Montée finale (+4 st) | "Tu viens ?" |
-| QUESTION_WH | Pic initial puis descente | "Où vas-tu ?" |
-| EXCLAMATION | Pic fort puis descente rapide | "Incroyable !" |
-| CONTINUATION | Légère montée (+1 st) | "D'abord, ..." |
-| SUSPENSE | Descente lente | "Et puis..." |
-
-Usage:
-```python
-from src.intonation_contour import IntonationProcessor
-processor = IntonationProcessor(sample_rate=24000, strength=0.7)
-audio = processor.process(audio, "Tu viens ?")  # Applique montée finale
-```
-
-### Timing Humanization
-
-`TimingHumanizer` évite la régularité mécanique:
-- **Variation gaussienne** des pauses (±15%)
-- **Rythme syntaxique**: clauses subordonnées plus rapides, incises encore plus
-- **Micro-pauses d'emphase** avant "jamais", "soudain", "mais", etc.
-- **Variation inter-phrase** (±3%) pour éviter la monotonie
-
-```python
-from src.timing_humanizer import TimingHumanizer, TextTimingProcessor
-humanizer = TimingHumanizer()
-pause = humanizer.humanize_pause(0.5)  # Retourne ~0.425-0.575s
-
-processor = TextTimingProcessor(humanizer)
-segments = processor.process_text("C'est vraiment incroyable!")
-# segments[0].text contient "[pause:0.05] vraiment" etc.
-```
-
-## Audio Crossfade (v2.4)
-
-`AudioCrossfader` provides smooth transitions between audio segments:
-
-```python
-from src.audio_crossfade import apply_crossfade_to_chapter, AudioCrossfader
-
-# Simple usage for chapter assembly
-final_audio = apply_crossfade_to_chapter(audio_segments, sample_rate=24000, crossfade_ms=50)
-
-# Advanced usage
-config = CrossfadeConfig(
-    crossfade_duration=0.05,  # 50ms
-    curve_type='cosine',       # 'linear', 'cosine', 'exponential'
-    apply_edge_fades=True
-)
-crossfader = AudioCrossfader(config)
-merged = crossfader.crossfade_segments(segment1, segment2, sample_rate)
-```
-
-The hybrid engine now uses crossfade by default:
-```python
-engine = HybridTTSEngine(use_crossfade=True, crossfade_ms=50)
-```
-
-## Quick Preview (v2.4)
-
-Generate 30-second previews to test settings before full conversion:
-
-```python
-from src.preview_generator import generate_quick_preview, PreviewGenerator
-
-# Simple usage
-success, msg = generate_quick_preview(
-    text="Long text...",
-    output_path="preview.wav",
-    engine_type="hybrid",
-    duration=30.0
-)
-
-# Advanced: extract representative text
-generator = PreviewGenerator()
-preview_text = generator.extract_preview_text(full_text, lang='fr')
-# Returns ~450 chars including: start, dialogue, emotional passage
-```
-
-## Corrections Web UI (v2.4)
-
-Gradio interface for managing pronunciation corrections:
+## Environment Variables
 
 ```bash
-# Launch the UI
-python -m src.corrections_ui --file corrections.json --port 7861
-
-# Or programmatically
-from src.corrections_ui import launch_corrections_ui
-launch_corrections_ui("corrections.json", share=False, port=7861)
-```
-
-Features:
-- Add/delete/search corrections
-- Preview corrections on text
-- Test audio with TTS engine
-- Import/export JSON
-
-## XTTS-v2 Engine (v2.4)
-
-High-quality voice cloning with XTTS-v2:
-
-```python
-from src.tts_xtts_engine import XTTSEngine, XTTSConfig
-
-config = XTTSConfig(
-    default_language="fr",
-    use_gpu=True,
-    temperature=0.7,
-    speed=1.0
-)
-engine = XTTSEngine(config)
-
-# Register a cloned voice (min 6 seconds of audio)
-engine.register_voice("narrator", "samples/narrator_voice.wav")
-
-# Synthesize with the cloned voice
-engine.synthesize_chapter(text, "output.wav", voice_id="narrator")
-```
-
-Requirements (Python 3.10 or 3.11 only - TTS doesn't support 3.12+):
-```bash
-# Create dedicated venv if using Python 3.12+
-python3.10 -m venv venv_xtts && source venv_xtts/bin/activate
-
-# Install dependencies
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install TTS
-pip install "transformers>=4.33.0,<4.50.0"  # Fix BeamSearchScorer error
-```
-
-See `docs/FINE_TUNING_OPTIONS.md` for fine-tuning guide.
-
-## Narration Styles (v2.4)
-
-`NarrationStyleManager` provides different narration modes:
-
-| Style | Speed | Description |
-|-------|-------|-------------|
-| `formal` | 0.95x | Posé, professionnel, stable |
-| `conversational` | 1.05x | Naturel, décontracté |
-| `dramatic` | 0.92x | Intense, grandes variations |
-| `storytelling` | 1.0x | Captivant, dynamique (défaut) |
-| `documentary` | 1.0x | Informatif, neutre |
-| `intimate` | 0.9x | Proche, confidentiel |
-| `energetic` | 1.12x | Dynamique, enthousiaste |
-
-```python
-from src.narration_styles import NarrationStyleManager, NarrationStyle
-
-manager = NarrationStyleManager(NarrationStyle.STORYTELLING)
-prosody = manager.apply_style_to_prosody(base_speed=1.0)
-# Returns {"speed": 1.02, "pitch": 0.18, "volume": 1.01}
-
-# Auto-suggest style based on context
-style = manager.suggest_style_for_context(
-    narrative_type="action",
-    emotion="fear",
-    is_dialogue=False
-)  # Returns NarrationStyle.DRAMATIC
-```
-
-## Word-Level Control (v2.4)
-
-`WordLevelController` supports SSML-like markup for fine-grained prosody:
-
-**Supported tags:**
-- `<em>mot</em>` or `*mot*` - Emphasis
-- `<slow>texte</slow>` - Slower speech
-- `<fast>texte</fast>` - Faster speech
-- `<pitch high>texte</pitch>` - Higher pitch
-- `<pitch low>texte</pitch>` - Lower pitch
-- `<whisper>texte</whisper>` - Soft, whispered
-- `<loud>texte</loud>` - Louder speech
-- `[pause]` or `[pause:0.3]` - Insert pause
-
-```python
-from src.word_level_control import WordLevelController
-
-controller = WordLevelController(auto_emphasis=True)
-result = controller.process_text(
-    "Il était <em>absolument</em> certain que [pause] *soudain* tout changerait."
-)
-print(result.clean_text)  # "Il était absolument certain que soudain tout changerait."
-# result.word_prosodies contains emphasis info for "absolument" and "soudain"
-```
-
-**Auto-emphasis words** (French): jamais, toujours, absolument, soudain, mais, cependant...
-
-## Dialogue Attribution (v2.4)
-
-`DialogueAttributor` identifies WHO is speaking:
-
-```python
-from src.dialogue_attribution import DialogueAttributor
-
-attributor = DialogueAttributor(lang="fr")
-
-# Register known characters
-attributor.register_character("Victor", "M")
-attributor.register_character("Marie", "F")
-
-# Attribute dialogue
-text = '« Tu es là ? » demanda Victor.'
-attr = attributor.attribute_dialogue("Tu es là ?", text)
-print(attr.speaker)      # "Victor"
-print(attr.method.value) # "explicit"
-print(attr.confidence)   # 0.95
-```
-
-**Attribution methods:**
-- `explicit`: "dit Victor", "répondit Marie"
-- `pronoun`: "dit-il", "murmura-t-elle"
-- `alternation`: Conversation pattern tracking
-- `context`: Last mentioned character
-
-## ACX/Audible Compliance (v2.4)
-
-`ACXAnalyzer` and `ACXCorrector` ensure professional audiobook standards:
-
-**ACX Requirements:**
-- RMS: -23dB to -18dB
-- Peak: ≤ -3dB
-- True Peak: ≤ -1dB
-- Noise Floor: ≤ -60dB
-- Sample Rate: ≥ 44.1kHz
-- Format: Mono preferred
-
-```python
-from src.acx_compliance import analyze_and_report, make_acx_compliant
-
-# Analyze a file
-report = analyze_and_report("audiobook.wav")
-print(f"Loudness: {report.analysis.integrated_lufs} LUFS")
-print(f"Peak: {report.analysis.peak_db} dB")
-print(f"Compliant: {report.is_acx_compliant}")
-
-# Auto-fix compliance issues
-success, report = make_acx_compliant("input.wav", "output.wav")
-```
-
-**CLI usage:**
-```bash
-python -m src.acx_compliance audiobook.wav --fix acx_compliant.wav
-```
-
-## LLM Emotion Detection (v2.4)
-
-`LLMEmotionDetector` uses LLMs for contextual emotion analysis:
-
-**Supported providers:**
-- Ollama (local, free)
-- OpenAI (cloud, requires API key)
-
-```python
-from src.llm_emotion_detector import LLMEmotionDetector, LLMConfig
-
-config = LLMConfig(
-    provider="ollama",
-    model="llama3.2",
-    temperature=0.3
-)
-detector = LLMEmotionDetector(config)
-
-# Simple detection
-result = detector.detect_emotion("Il sourit amèrement, sachant la vérité.")
-print(result.primary_emotion.value)  # "irony" or "sadness"
-print(result.confidence)             # 0.85
-
-# Contextual detection
-result = detector.detect_emotion(
-    text="Elle sourit.",
-    context="Après des mois de deuil, elle avait trouvé la paix."
-)
-# Detects "relief" instead of simple "joy"
-
-# Character state tracking
-detector.detect_emotion("Il était furieux.", character="Victor")
-state = detector.get_character_state("Victor")
-print(state.mood_trend)  # "stable", "improving", or "declining"
-```
-
-**Fallback:** Uses keyword-based detection if LLM unavailable.
-
-## LLM Enhancer (v5.0)
-
-`LLMEnhancer` is a unified pipeline for all LLM-based improvements:
-
-**Supported Providers:**
-- Ollama (local, free - recommended)
-- OpenAI (cloud)
-- Anthropic Claude (cloud)
-- **Gemini 2.5 Flash** (cloud, fast)
-
-```python
-from src.llm_enhancer import (
-    LLMEnhancer, LLMConfig, LLMProvider,
-    create_gemini_enhancer, create_ollama_enhancer
-)
-
-# Create with Gemini 2.5 Flash
-enhancer = create_gemini_enhancer(api_key="your-api-key")
-
-# Or with Ollama (local)
-enhancer = create_ollama_enhancer(model="llama3.2")
-
-# Validate character name (eliminate false positives)
-result = enhancer.validate_character_name("coupé", "Il a coupé la parole.")
-print(result.is_character)  # False
-
-# Auto-insert audio tags
-tagged = enhancer.auto_insert_audio_tags("Il murmura doucement...")
-# Returns: "[whispers] Il murmura doucement..."
-
-# Analyze emotion with context
-emotion = enhancer.analyze_emotion_contextual(
-    "Soudain, un cri retentit !",
-    narrative_context=NarrativeContext.SUSPENSE
-)
-print(emotion.primary_emotion)  # EmotionType.FEAR
-
-# Attribute dialogue
-attr = enhancer.attribute_dialogue(
-    "Vraiment ?",
-    context="Marie regarda Pierre avec surprise.",
-    known_characters=["Marie", "Pierre"]
-)
-print(attr.speaker)  # "Marie"
-
-# Full enhancement pipeline
-result = enhancer.enhance_text_for_tts(
-    "Soudain, un cri déchira le silence !",
-    insert_tags=True,
-    detect_emotions=True,
-    suggest_prosody=True
-)
-print(result["emotion"]["primary"])  # "fear"
-print(result["prosody"]["speed"])    # 0.85 (slower for suspense)
-```
-
-**Available Methods:**
-| Method | Description |
-|--------|-------------|
-| `validate_character_name()` | Validate if name is a character (not false positive) |
-| `auto_insert_audio_tags()` | Insert `[whispers]`, `[excited]`, etc. automatically |
-| `analyze_emotion_contextual()` | Contextual emotion detection with subtext |
-| `attribute_dialogue()` | Determine WHO is speaking |
-| `detect_narrative_context()` | Action, description, dialogue, suspense... |
-| `suggest_prosody()` | Speed, pitch, volume, pauses suggestions |
-| `enhance_text_for_tts()` | Full pipeline combining all methods |
-
-**Environment Variables:**
-```bash
-export GEMINI_API_KEY="your-gemini-key"
-export OPENAI_API_KEY="your-openai-key"
-export ANTHROPIC_API_KEY="your-anthropic-key"
-```
-
-**CharacterDetector Integration:**
-
-The `CharacterDetector` can use `LLMEnhancer` for inline validation of ambiguous character names:
-
-```python
-from src.character_detector import CharacterDetector
-from src.llm_enhancer import LLMEnhancer, LLMConfig
-
-# Create enhancer with heuristic fallback
-enhancer = LLMEnhancer(LLMConfig(fallback_to_heuristics=True))
-
-# Pass to CharacterDetector for inline validation
-detector = CharacterDetector(lang="fr", llm_enhancer=enhancer)
-
-# Names with confidence between 0.3-0.7 are validated via LLM
-segments = detector.detect_dialogue_segments(text)
-characters = detector.get_characters()  # False positives filtered
-```
-
-In the HQ pipeline, LLM validation is automatic when `--llm-enhance` is enabled:
-```bash
-python audio_reader.py livre.md --hq --llm-enhance --llm-provider gemini
-```
-
-## v3.0 Platform Features
-
-### Universal Input Converter
-
-`InputConverter` handles PDF and EPUB files, converting them to Markdown:
-
-```python
-from src.input_converter import InputConverter
-
-converter = InputConverter()
-
-# Convert PDF to Markdown
-md_path = converter.convert_to_markdown(Path("book.pdf"))
-
-# Convert EPUB to Markdown
-md_path = converter.convert_to_markdown(Path("book.epub"))
-
-# Already .md or .txt files are returned as-is
-md_path = converter.convert_to_markdown(Path("book.md"))
-```
-
-**PDF conversion features:**
-- Heuristic title detection based on font size
-- Text extraction with paragraph reconstruction
-- Page-by-page processing
-
-**EPUB conversion features:**
-- Metadata extraction (title, author)
-- HTML to Markdown conversion
-- Chapter separator insertion
-
-### Audio Extractor (Voice Cloning from Video)
-
-`AudioExtractor` extracts audio segments from video files for voice cloning:
-
-```python
-from src.audio_extractor import AudioExtractor
-
-extractor = AudioExtractor()
-
-# Extract segment from video
-success = extractor.extract_segment(
-    video_path="movie.mp4",
-    output_path="voice_sample.wav",
-    start_time="00:01:30",  # 1min 30sec
-    end_time="00:01:45"     # 15 seconds segment
-)
-
-# Get video duration
-duration = extractor.get_duration("movie.mp4")
-```
-
-**Features:**
-- Supports MP4, MKV, AVI, MOV, WebM
-- FFmpeg-based extraction (mono, 24kHz WAV output)
-- Time range selection for isolating clean voice samples
-
-### Podcast RSS Server
-
-`PodcastServer` streams generated audiobooks as a local podcast:
-
-```python
-from src.podcast_server import PodcastServer
-
-server = PodcastServer(
-    audio_dir="output/",
-    port=8080,
-    title="My Audiobooks"
-)
-
-# Generate QR code for mobile subscription
-qr_path = server.generate_qr_code()
-
-# Start serving
-server.start()  # Blocks, or use start_background()
-```
-
-**Features:**
-- Automatic RSS feed generation
-- QR code for easy mobile subscription
-- Compatible with Apple Podcasts, Pocket Casts, etc.
-- Zero file transfer needed (Wi-Fi streaming)
-
-### Web Interface (app.py)
-
-The Gradio web interface provides access to all v3.0 features:
-
-**Tabs:**
-1. **Texte** - Quick text-to-speech conversion
-2. **Livre** - Full book conversion with multi-voice
-3. **Clonage** - Voice cloning from video extraction
-4. **Podcast** - RSS server with QR code
-5. **Corrections** - Pronunciation glossary management
-
-**Launch:**
-```bash
-python app.py
-# or
-python audio_reader.py --gui
-
-# Opens http://localhost:7860
-```
-
-## Boucle de feedback
-
-Après chaque modification, exécuter automatiquement :
-
-```bash
-# Activer l'environnement virtuel
-source venv/bin/activate
-
-# 1. Tests complets
-python run_tests.py
-
-# 2. Tests avec couverture
-python run_tests.py --coverage
-
-# 3. Test d'un module spécifique (si modification ciblée)
-python run_tests.py --module audio_tags
-python run_tests.py --module voice_morphing
-```
-
-**Workflow complet :**
-1. Modifier le code
-2. `python run_tests.py -v` - Lancer les tests (verbose)
-3. Si erreur → corriger et recommencer
-4. Tester manuellement avec un fichier court :
-   ```bash
-   python audio_reader.py test.md --hq
-   ```
-5. Si tout passe → valider
-
-**Tests rapides par domaine :**
-```bash
-python run_tests.py --module cache           # Cache
-python run_tests.py --module emotion_control # Émotions
-python run_tests.py --module pipeline        # Pipeline HQ
+GEMINI_API_KEY=...      # For Gemini LLM enhancer
+OPENAI_API_KEY=...      # For OpenAI LLM enhancer
+ANTHROPIC_API_KEY=...   # For Anthropic LLM enhancer
+VITE_API_URL=...        # Frontend API base URL (defaults to same origin)
 ```
 
 ## Language
 
-This is a French-focused project. Code comments, docstrings, and output messages are primarily in French. The system handles French text normalization (numbers, dates, Roman numerals) extensively.
+French-focused project. The text normalization pipeline handles French numbers, dates, currencies, Roman numerals extensively. Code comments and UI strings are primarily in French.

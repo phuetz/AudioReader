@@ -30,6 +30,7 @@ class TTSEngine(Enum):
     CHATTERBOX = "chatterbox"  # Resemble AI — bat ElevenLabs
     ORPHEUS = "orpheus"  # Canopy Labs — emotion naturelle
     PARLER = "parler"  # Hugging Face — description-based, multilingual
+    QWEN3 = "qwen3"  # Alibaba Qwen — 10 langues, clonage 3s, instruct
     AUTO = "auto"  # Selection automatique selon la langue
 
 
@@ -316,6 +317,7 @@ class UnifiedTTS:
         self._chatterbox = None  # Lazy loading (GPU lourd)
         self._orpheus = None  # Lazy loading (GPU lourd)
         self._parler = None  # Lazy loading (GPU lourd)
+        self._qwen3 = None  # Lazy loading (GPU lourd)
 
         # Préprocesseur français
         self._french_preprocessor = None
@@ -368,6 +370,20 @@ class UnifiedTTS:
                     return None
         return self._parler
 
+    def _get_qwen3(self):
+        """Retourne le backend Qwen3-TTS (lazy loading)."""
+        if self._qwen3 is None:
+            try:
+                from src.tts_qwen3_engine import Qwen3Engine
+                self._qwen3 = Qwen3Engine()
+            except ImportError:
+                try:
+                    from tts_qwen3_engine import Qwen3Engine
+                    self._qwen3 = Qwen3Engine()
+                except ImportError:
+                    return None
+        return self._qwen3
+
     def get_available_engines(self) -> List[TTSEngine]:
         """Retourne la liste des moteurs disponibles."""
         engines = []
@@ -384,6 +400,9 @@ class UnifiedTTS:
         parler = self._get_parler()
         if parler and parler.is_available():
             engines.append(TTSEngine.PARLER)
+        qwen3 = self._get_qwen3()
+        if qwen3 and qwen3.is_available():
+            engines.append(TTSEngine.QWEN3)
         return engines
 
     def get_voices(self, lang: Optional[str] = None, engine: Optional[TTSEngine] = None) -> List[TTSVoice]:
@@ -437,6 +456,10 @@ class UnifiedTTS:
             parler = self._get_parler()
             if parler and parler.is_available():
                 return TTSEngine.PARLER
+        if preferred == TTSEngine.QWEN3:
+            qwen3 = self._get_qwen3()
+            if qwen3 and qwen3.is_available():
+                return TTSEngine.QWEN3
         if preferred == TTSEngine.EDGE_TTS and self._edge_tts.is_available():
             return TTSEngine.EDGE_TTS
         if preferred == TTSEngine.KOKORO and self._kokoro.is_available():
@@ -456,6 +479,9 @@ class UnifiedTTS:
         parler = self._get_parler()
         if parler and parler.is_available():
             return TTSEngine.PARLER
+        qwen3 = self._get_qwen3()
+        if qwen3 and qwen3.is_available():
+            return TTSEngine.QWEN3
 
         raise RuntimeError("Aucun moteur TTS disponible")
 
@@ -551,6 +577,9 @@ class UnifiedTTS:
         elif selected_engine == TTSEngine.PARLER:
             parler = self._get_parler()
             return parler.synthesize_array(text, voice_description=voice)
+        elif selected_engine == TTSEngine.QWEN3:
+            qwen3 = self._get_qwen3()
+            return qwen3.synthesize_array(text, voice=voice, speed=speed, lang=lang)
         else:
             return self._edge_tts.synthesize(text, voice=voice, speed=speed)
 
@@ -585,6 +614,9 @@ class UnifiedTTS:
         elif selected_engine == TTSEngine.PARLER:
             parler = self._get_parler()
             return parler.synthesize_array(text, voice_description=voice)
+        elif selected_engine == TTSEngine.QWEN3:
+            qwen3 = self._get_qwen3()
+            return qwen3.synthesize_array(text, voice=voice, speed=speed, lang=lang)
         else:
             # Kokoro est synchrone
             return self._kokoro.synthesize(text, voice=voice, speed=speed, lang=lang)

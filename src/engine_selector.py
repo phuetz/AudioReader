@@ -55,6 +55,9 @@ class EngineSelector:
             elif engine == "f5":
                 from src.tts_f5_engine import F5Engine
                 available = F5Engine.is_available()
+            elif engine == "qwen3":
+                from src.tts_qwen3_engine import Qwen3Engine
+                available = Qwen3Engine().is_available()
             elif engine == "xtts":
                 from src.tts_xtts_engine import XTTSEngine
                 available = True
@@ -82,7 +85,7 @@ class EngineSelector:
         """
         # Clonage de voix
         if context.has_clone_voice:
-            for eng in ["chatterbox", "f5", "xtts"]:
+            for eng in ["chatterbox", "qwen3", "f5", "xtts"]:
                 if self._check_available(eng):
                     return eng
 
@@ -93,7 +96,7 @@ class EngineSelector:
 
         # Qualite preferee
         if context.prefer_quality:
-            for eng in ["chatterbox", "f5", "kokoro"]:
+            for eng in ["chatterbox", "qwen3", "f5", "kokoro"]:
                 if self._check_available(eng):
                     return eng
 

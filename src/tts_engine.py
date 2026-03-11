@@ -30,6 +30,12 @@ class EngineType(Enum):
     XTTS = "xtts"
     EDGE = "edge"
     PYTTSX3 = "pyttsx3"
+    CHATTERBOX = "chatterbox"
+    ORPHEUS = "orpheus"
+    PARLER = "parler"
+    QWEN3 = "qwen3"
+    DIA = "dia"
+    F5 = "f5"
     AUTO = "auto"
 
 
@@ -185,6 +191,60 @@ class UnifiedTTSEngine:
             except Exception as e:
                 print(f"XTTS non disponible: {e}, fallback MMS")
                 self._engine_type = EngineType.MMS
+                self._create_engine()
+
+        elif self._engine_type == EngineType.CHATTERBOX:
+            try:
+                ChatterboxEngine = robust_import("tts_chatterbox_engine", "ChatterboxEngine")
+                self._engine = ChatterboxEngine()
+            except Exception as e:
+                print(f"Chatterbox non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.ORPHEUS:
+            try:
+                OrpheusEngine = robust_import("tts_orpheus_engine", "OrpheusEngine")
+                self._engine = OrpheusEngine()
+            except Exception as e:
+                print(f"Orpheus non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.PARLER:
+            try:
+                ParlerEngine = robust_import("tts_parler_engine", "ParlerEngine")
+                self._engine = ParlerEngine()
+            except Exception as e:
+                print(f"Parler non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.QWEN3:
+            try:
+                Qwen3Engine = robust_import("tts_qwen3_engine", "Qwen3Engine")
+                self._engine = Qwen3Engine()
+            except Exception as e:
+                print(f"Qwen3-TTS non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.DIA:
+            try:
+                DiaEngine = robust_import("tts_dia_engine", "DiaEngine")
+                self._engine = DiaEngine()
+            except Exception as e:
+                print(f"Dia non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.F5:
+            try:
+                F5Engine = robust_import("tts_f5_engine", "F5Engine")
+                self._engine = F5Engine()
+            except Exception as e:
+                print(f"F5-TTS non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
                 self._create_engine()
 
         elif self._engine_type == EngineType.EDGE:

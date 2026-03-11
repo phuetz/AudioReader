@@ -98,6 +98,7 @@ ENGINES = {
     "chatterbox": "Chatterbox - Clonage voix, controle emotionnel (bat ElevenLabs)",
     "orpheus": "Orpheus - Emotion naturelle, tags inline (Llama-3B)",
     "parler": "Parler TTS - Haute qualite multilangue (Hugging Face)",
+    "qwen3": "Qwen3-TTS - 10 langues, clonage 3s, instruct (Alibaba)",
     "dia": "Dia 1.6B - Multi-speakers natif",
     "f5": "F5-TTS - Flow matching, CPU-friendly",
     "xtts": "XTTS-v2 - Clonage haute qualite",
@@ -388,16 +389,22 @@ def convert_book(
             )
             checkpoint_mgr.save(cp)
 
-    # Si clonage demande, on force XTTS ou Chatterbox si auto
+    # Si clonage demande, on force XTTS ou Chatterbox ou Qwen3 si auto
     if clone_path:
         if engine_type == "auto":
-            # Preference Chatterbox > F5 > XTTS
-            for eng in ["chatterbox", "f5", "xtts"]:
+            # Preference Chatterbox > Qwen3 > F5 > XTTS
+            for eng in ["chatterbox", "qwen3", "f5", "xtts"]:
                 try:
                     if eng == "chatterbox":
                         from src.tts_chatterbox_engine import ChatterboxEngine
                         cb = ChatterboxEngine()
                         if cb.is_available():
+                            engine_type = eng
+                            break
+                    elif eng == "qwen3":
+                        from src.tts_qwen3_engine import Qwen3Engine
+                        q3 = Qwen3Engine()
+                        if q3.is_available():
                             engine_type = eng
                             break
                     elif eng == "f5":
@@ -601,7 +608,7 @@ Moteurs TTS (tous gratuits):
     parser.add_argument(
         "-e", "--engine",
         default="auto",
-        choices=["auto", "kokoro", "mms", "chatterbox", "orpheus", "parler", "dia", "f5", "xtts", "edge"],
+        choices=["auto", "kokoro", "mms", "chatterbox", "orpheus", "parler", "qwen3", "dia", "f5", "xtts", "edge"],
         help="Moteur TTS"
     )
 
