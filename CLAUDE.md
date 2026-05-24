@@ -90,7 +90,7 @@ Three-tier system: **CLI** → **FastAPI API** → **React Frontend**
 - `tts_kokoro_engine.py` — Primary engine (Kokoro-82M), supports voice blending
 - `tts_unified.py` — Wrapper that auto-selects best engine per language
 - `tts_hybrid_engine.py` — Combines engines with crossfade
-- Others: `tts_qwen3_engine.py` (Qwen3, 10 langs, cloning+instruct), `tts_xtts_engine.py` (voice cloning), `tts_chatterbox_engine.py`, `tts_orpheus_engine.py`, `tts_parler_engine.py`, `tts_engine.py` (Edge-TTS fallback)
+- Others: `tts_qwen3_engine.py` (Qwen3, 10 langs, cloning+instruct), `tts_voxtral_engine.py` (Voxtral/Mistral, cloud+local, 9 langs, cloning), `tts_xtts_engine.py` (voice cloning), `tts_chatterbox_engine.py`, `tts_orpheus_engine.py`, `tts_parler_engine.py`, `tts_engine.py` (Edge-TTS fallback)
 
 **Audio Processing:** `audio_enhancer.py` (EQ/compression/loudness), `bio_acoustics.py` (breaths/room tone), `audio_crossfade.py`, `acx_compliance.py` (Audible standards)
 
@@ -147,6 +147,8 @@ Required in project root:
 GEMINI_API_KEY=...      # For Gemini LLM enhancer
 OPENAI_API_KEY=...      # For OpenAI LLM enhancer
 ANTHROPIC_API_KEY=...   # For Anthropic LLM enhancer
+MISTRAL_API_KEY=...     # For Voxtral TTS (cloud mode)
+VOXTRAL_BASE_URL=...    # For Voxtral TTS (local vLLM server URL)
 VITE_API_URL=...        # Frontend API base URL (defaults to same origin)
 ```
 

@@ -91,3 +91,6 @@ audioreader.toml
 
 # Node modules (frontend)
 node_modules/
+
+# Antigravity CLI metadata
+.antigravitycli/

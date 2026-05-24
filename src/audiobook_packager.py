@@ -8,14 +8,14 @@ Fonctionnalités:
 - Export M4B compatible iTunes/Apple Books/VLC
 """
 
-import os
-import subprocess
 import json
-import tempfile
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Optional
+import os
 import re
+import subprocess
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List, Optional
 
 
 @dataclass
@@ -48,6 +48,24 @@ class AudiobookProject:
 
 def get_audio_duration_ms(audio_file: str) -> int:
     """Récupère la durée d'un fichier audio en millisecondes."""
+    # 1. Tenter d'utiliser soundfile (méthode native Python, rapide et robuste)
+    try:
+        import soundfile as sf
+        info = sf.info(audio_file)
+        return int(info.duration * 1000)
+    except Exception:
+        pass
+
+    # 2. Tenter d'utiliser mutagen (méthode native Python alternative)
+    try:
+        import mutagen
+        audio = mutagen.File(audio_file)
+        if audio is not None and audio.info is not None:
+            return int(audio.info.length * 1000)
+    except Exception:
+        pass
+
+    # 3. Fallback historique sur ffprobe
     cmd = [
         'ffprobe', '-v', 'quiet', '-print_format', 'json',
         '-show_format', audio_file
@@ -197,7 +215,7 @@ def package_audiobook(
         # Étape 2: Ajouter les métadonnées et chapitres
         print("Ajout des métadonnées et chapitres...")
 
-        # Construire les métadonnées
+        # Construire les métadonnées pour fallback
         meta_args = [
             '-metadata', f'title={metadata.title}',
             '-metadata', f'artist={metadata.author}',
@@ -208,46 +226,93 @@ def package_audiobook(
             '-metadata', f'comment={metadata.description}',
         ]
 
-        cmd2 = [
-            'ffmpeg', '-y',
-            '-i', temp_audio,
-            '-i', chapters_file,
-            '-map_metadata', '1',
-            '-map_chapters', '1',
-            '-c', 'copy',
-            *meta_args,
-        ]
-
-        # Ajouter la couverture si disponible
-        if metadata.cover_image and os.path.exists(metadata.cover_image):
-            cmd2 = [
-                'ffmpeg', '-y',
-                '-i', temp_audio,
-                '-i', chapters_file,
-                '-i', metadata.cover_image,
-                '-map', '0:a',
-                '-map', '2:v',
-                '-map_metadata', '1',
-                '-map_chapters', '1',
-                '-c:a', 'copy',
-                '-c:v', 'mjpeg',
-                '-disposition:v', 'attached_pic',
-                *meta_args,
-            ]
-
         # Assurer l'extension .m4b
         if not output_file.lower().endswith('.m4b'):
             output_file = output_file.rsplit('.', 1)[0] + '.m4b'
 
-        cmd2.append(output_file)
+        try:
+            import mutagen
+            from mutagen.mp4 import MP4, MP4Cover
 
-        if not verbose:
-            cmd2.insert(1, '-loglevel')
-            cmd2.insert(2, 'warning')
+            # Étape 2a: Créer l'audiobook de base avec ffmpeg (seulement audio + chapitres)
+            cmd2 = [
+                'ffmpeg', '-y',
+                '-i', temp_audio,
+                '-i', chapters_file,
+                '-map_metadata', '1',
+                '-map_chapters', '1',
+                '-c', 'copy',
+                output_file
+            ]
+            if not verbose:
+                cmd2.insert(1, '-loglevel')
+                cmd2.insert(2, 'warning')
 
-        result = subprocess.run(cmd2, capture_output=not verbose)
-        if result.returncode != 0:
-            raise RuntimeError(f"Erreur métadonnées: {result.stderr}")
+            result = subprocess.run(cmd2, capture_output=not verbose)
+            if result.returncode != 0:
+                raise RuntimeError(f"Erreur ffmpeg base: {result.stderr}")
+
+            # Étape 2b: Injecter les tags et la couverture avec Mutagen
+            print("Injection des métadonnées avec Mutagen...")
+            audio_m4b = MP4(output_file)
+
+            # Mapping des tags standard MP4 (iTunes)
+            audio_m4b["\xa9nam"] = [metadata.title]      # Titre
+            audio_m4b["\xa9ART"] = [metadata.author]     # Artiste (Auteur)
+            audio_m4b["\xa9alb"] = [metadata.title]      # Album
+            audio_m4b["\xa9wrt"] = [metadata.narrator]   # Compositeur (Narrateur)
+            audio_m4b["\xa9gen"] = [metadata.genre]      # Genre
+            audio_m4b["desc"] = [metadata.description]   # Description
+            if metadata.year:
+                audio_m4b["\xa9day"] = [metadata.year]   # Date
+
+            # Couverture
+            if metadata.cover_image and os.path.exists(metadata.cover_image):
+                with open(metadata.cover_image, 'rb') as f:
+                    cov_data = f.read()
+                cov_format = MP4Cover.FORMAT_PNG if metadata.cover_image.lower().endswith('.png') else MP4Cover.FORMAT_JPEG
+                audio_m4b["covr"] = [MP4Cover(cov_data, imageformat=cov_format)]
+
+            audio_m4b.save()
+
+        except Exception as e:
+            print(f"Mutagen non disponible ou erreur ({e}). Fallback vers ffmpeg pur...")
+            cmd2 = [
+                'ffmpeg', '-y',
+                '-i', temp_audio,
+                '-i', chapters_file,
+                '-map_metadata', '1',
+                '-map_chapters', '1',
+                '-c', 'copy',
+                *meta_args,
+            ]
+
+            # Ajouter la couverture si disponible
+            if metadata.cover_image and os.path.exists(metadata.cover_image):
+                cmd2 = [
+                    'ffmpeg', '-y',
+                    '-i', temp_audio,
+                    '-i', chapters_file,
+                    '-i', metadata.cover_image,
+                    '-map', '0:a',
+                    '-map', '2:v',
+                    '-map_metadata', '1',
+                    '-map_chapters', '1',
+                    '-c:a', 'copy',
+                    '-c:v', 'mjpeg',
+                    '-disposition:v', 'attached_pic',
+                    *meta_args,
+                ]
+
+            cmd2.append(output_file)
+
+            if not verbose:
+                cmd2.insert(1, '-loglevel')
+                cmd2.insert(2, 'warning')
+
+            result = subprocess.run(cmd2, capture_output=not verbose)
+            if result.returncode != 0:
+                raise RuntimeError(f"Erreur métadonnées (fallback): {result.stderr}")
 
     file_size = os.path.getsize(output_file) / (1024 * 1024)
     print(f"Audiobook créé: {output_file} ({file_size:.1f} MB)")

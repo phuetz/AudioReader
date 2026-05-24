@@ -115,9 +115,9 @@ Ceci est le premier chapitre.
 Ceci est le deuxième chapitre.
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.md', delete=False) as f:
         f.write(content)
-        temp_path = f.name
+        temp_path = Path(f.name)
 
     try:
         chapters = parse_book(temp_path)

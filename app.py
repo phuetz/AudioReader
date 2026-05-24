@@ -649,11 +649,11 @@ def pipeline_synthesize_chapter(pipeline, text: str, output_path: Path, progress
             voice=pipeline.config.narrator_voice
         )
 
-        def synth_fn(t, v, s):
+        def synth_fn(t, v, s, g=None):
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
             try:
-                success = engine.synthesize(t, tmp_path, voice=v, speed=s)
+                success = engine.synthesize(t, tmp_path, voice=v, speed=s, gender=g)
                 if success and os.path.exists(tmp_path):
                     audio, _ = sf.read(tmp_path)
                     return audio

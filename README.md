@@ -33,6 +33,7 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 
 - [Captures d'écran](#-captures-décran)
 - [Fonctionnalites](#fonctionnalites)
+- [Nouveautes v5.1 - Mastering Adaptatif et Support Double GPU](#nouveautes-v51---mastering-adaptatif-et-support-double-gpu)
 - [Nouveautes v5.0 - Detection Amelioree et Export Professionnel](#nouveautes-v50---detection-amelioree-et-export-professionnel)
 - [Nouveautes v4.0 - Interface Moderne et Nouveaux Moteurs](#nouveautes-v40---interface-moderne-et-nouveaux-moteurs)
 - [Nouveautes v3.0 - Plateforme Complete](#nouveautes-v30---plateforme-complete)
@@ -92,6 +93,24 @@ Propulse par [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) - un modele
 - **CLI complete**: Scripts en ligne de commande avec options avancees
 - **Interface Web**: Application Gradio intuitive
 - **Pipeline HQ**: Script dedie pour qualite maximale
+
+## Nouveautes v5.1 - Mastering Adaptatif et Support Double GPU (Feuille de route Phase 1)
+
+### 1. Mastering Adaptatif Multi-Profil
+Le post-processing audio par DSP utilise désormais **Spotify Pedalboard** de manière adaptative selon le profil de genre de la voix (détecté automatiquement) :
+- **Profil Homme (`male`)** : Coupe-bas (Highpass) à 75Hz pour conserver la chaleur naturelle de la voix, atténuation à 250Hz (-1.5dB) pour éliminer l'effet de proximité boomy, et boost de présence à 2.5kHz.
+- **Profil Femme (`female`)** : Coupe-bas à 100Hz pour un nettoyage net des basses fréquences, De-esser centré sur 7.0kHz (correction dynamique des sibilantes), présence boostée à 3.5kHz et boost de clarté/air à 12.0kHz (+1.5dB).
+- **Profil Neutre (`neutral`)** : Paramètres standards de la configuration.
+- **Noise Gate initial** : Un Noise Gate calé à -55dB est inséré au début du traitement pour éliminer tout bruit numérique ou de fond entre les mots.
+
+Le pipeline possède un **fallback natif** (NumPy/SciPy) si Spotify Pedalboard ou `ffmpeg` ne sont pas installés sur le système.
+
+### 2. Isolation et Support Double GPU (RTX 3090)
+Optimisation majeure pour les configurations à double GPU :
+- Répartition de la charge de calcul pour éviter les conflits de mémoire.
+- Exécution de l'analyse (LLM / Ollama) isolée sur le **GPU 0** via `CUDA_VISIBLE_DEVICES="0"`.
+- Exécution de la synthèse de parole (Kokoro/XTTS via ONNX/PyTorch) et du post-processing isolée sur le **GPU 1** via `CUDA_VISIBLE_DEVICES="1"`.
+- Script d'exemple de configuration et d'exécution parallèle disponible dans `examples/test_multigpu.py`.
 
 ---
 

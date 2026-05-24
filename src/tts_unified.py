@@ -31,6 +31,7 @@ class TTSEngine(Enum):
     ORPHEUS = "orpheus"  # Canopy Labs — emotion naturelle
     PARLER = "parler"  # Hugging Face — description-based, multilingual
     QWEN3 = "qwen3"  # Alibaba Qwen — 10 langues, clonage 3s, instruct
+    VOXTRAL = "voxtral"  # Mistral AI — cloud/local, 9 langues, clonage 2s
     AUTO = "auto"  # Selection automatique selon la langue
 
 
@@ -318,6 +319,7 @@ class UnifiedTTS:
         self._orpheus = None  # Lazy loading (GPU lourd)
         self._parler = None  # Lazy loading (GPU lourd)
         self._qwen3 = None  # Lazy loading (GPU lourd)
+        self._voxtral = None  # Lazy loading (API-based)
 
         # Préprocesseur français
         self._french_preprocessor = None
@@ -384,6 +386,20 @@ class UnifiedTTS:
                     return None
         return self._qwen3
 
+    def _get_voxtral(self):
+        """Retourne le backend Voxtral (lazy loading)."""
+        if self._voxtral is None:
+            try:
+                from src.tts_voxtral_engine import VoxtralEngine
+                self._voxtral = VoxtralEngine()
+            except ImportError:
+                try:
+                    from tts_voxtral_engine import VoxtralEngine
+                    self._voxtral = VoxtralEngine()
+                except ImportError:
+                    return None
+        return self._voxtral
+
     def get_available_engines(self) -> List[TTSEngine]:
         """Retourne la liste des moteurs disponibles."""
         engines = []
@@ -403,6 +419,9 @@ class UnifiedTTS:
         qwen3 = self._get_qwen3()
         if qwen3 and qwen3.is_available():
             engines.append(TTSEngine.QWEN3)
+        voxtral = self._get_voxtral()
+        if voxtral and voxtral.is_available():
+            engines.append(TTSEngine.VOXTRAL)
         return engines
 
     def get_voices(self, lang: Optional[str] = None, engine: Optional[TTSEngine] = None) -> List[TTSVoice]:
@@ -460,6 +479,10 @@ class UnifiedTTS:
             qwen3 = self._get_qwen3()
             if qwen3 and qwen3.is_available():
                 return TTSEngine.QWEN3
+        if preferred == TTSEngine.VOXTRAL:
+            voxtral = self._get_voxtral()
+            if voxtral and voxtral.is_available():
+                return TTSEngine.VOXTRAL
         if preferred == TTSEngine.EDGE_TTS and self._edge_tts.is_available():
             return TTSEngine.EDGE_TTS
         if preferred == TTSEngine.KOKORO and self._kokoro.is_available():
@@ -482,6 +505,9 @@ class UnifiedTTS:
         qwen3 = self._get_qwen3()
         if qwen3 and qwen3.is_available():
             return TTSEngine.QWEN3
+        voxtral = self._get_voxtral()
+        if voxtral and voxtral.is_available():
+            return TTSEngine.VOXTRAL
 
         raise RuntimeError("Aucun moteur TTS disponible")
 
@@ -580,6 +606,9 @@ class UnifiedTTS:
         elif selected_engine == TTSEngine.QWEN3:
             qwen3 = self._get_qwen3()
             return qwen3.synthesize_array(text, voice=voice, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.VOXTRAL:
+            voxtral = self._get_voxtral()
+            return voxtral.synthesize_array(text, voice=voice, speed=speed, lang=lang)
         else:
             return self._edge_tts.synthesize(text, voice=voice, speed=speed)
 
@@ -617,6 +646,9 @@ class UnifiedTTS:
         elif selected_engine == TTSEngine.QWEN3:
             qwen3 = self._get_qwen3()
             return qwen3.synthesize_array(text, voice=voice, speed=speed, lang=lang)
+        elif selected_engine == TTSEngine.VOXTRAL:
+            voxtral = self._get_voxtral()
+            return voxtral.synthesize_array(text, voice=voice, speed=speed, lang=lang)
         else:
             # Kokoro est synchrone
             return self._kokoro.synthesize(text, voice=voice, speed=speed, lang=lang)

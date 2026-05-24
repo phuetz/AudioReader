@@ -473,7 +473,7 @@ class KokoroEngine:
 
             # Post-processing audio (enhancement)
             if self.enhance_audio and len(final_samples) > 0:
-                final_samples = self._enhance_audio(final_samples, sample_rate)
+                final_samples = self._enhance_audio(final_samples, sample_rate, voice=voice)
 
             # Sauvegarder
             output_path = Path(output_path)
@@ -486,26 +486,34 @@ class KokoroEngine:
             print(f"Erreur Kokoro: {e}")
             return False
 
-    def _enhance_audio(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+    def _enhance_audio(self, audio: np.ndarray, sample_rate: int, voice: Optional[str] = None) -> np.ndarray:
         """Applique le post-processing audio pour améliorer la qualité."""
+        # Détecter le genre à partir du nom de la voix
+        gender = "neutral"
+        if voice:
+            voice_str = str(voice).lower().strip()
+            if "," in voice_str:
+                # Extraire la première voix du blend
+                voice_str = voice_str.split(",")[0].split(":")[0].strip()
+            if voice_str.startswith("am_") or voice_str.startswith("bm_") or voice_str.startswith("m_") or "male" in voice_str:
+                gender = "male"
+            elif voice_str.startswith("af_") or voice_str.startswith("bf_") or voice_str.startswith("ff_") or "female" in voice_str or "siwis" in voice_str:
+                gender = "female"
+
+        # Tenter d'utiliser d'abord le NativeAudioEnhancer (qui utilise Spotify Pedalboard avec profils)
         try:
-            from .audio_processor import VoiceEnhancer
-
-            if self._audio_processor is None:
-                self._audio_processor = VoiceEnhancer()
-
-            return self._audio_processor.enhance(audio, sample_rate, self.enhance_style)
-        except ImportError:
-            # Fallback vers NativeAudioEnhancer (scipy/numpy)
-            try:
-                from .audio_enhancer import NativeAudioEnhancer
-                enhancer = NativeAudioEnhancer()
-                return enhancer.enhance(audio, sample_rate)
-            except ImportError:
-                return audio
+            from .audio_enhancer import NativeAudioEnhancer
+            enhancer = NativeAudioEnhancer()
+            return enhancer.enhance(audio, sample_rate, gender=gender)
         except Exception as e:
-            print(f"Warning: Enhancement échoué: {e}")
-            return audio
+            # Fallback vers VoiceEnhancer si non disponible ou erreur
+            try:
+                from .audio_processor import VoiceEnhancer
+                if self._audio_processor is None:
+                    self._audio_processor = VoiceEnhancer()
+                return self._audio_processor.enhance(audio, sample_rate, self.enhance_style)
+            except Exception:
+                return audio
 
     def synthesize_with_chapter_pauses(
         self,

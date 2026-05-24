@@ -26,65 +26,57 @@ from pathlib import Path
 # Ajouter src au path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from markdown_parser import parse_book, Chapter
-from tts_engine import create_tts_engine, EngineType
+from markdown_parser import Chapter, parse_book
+from tts_engine import EngineType, create_tts_engine
 
 # Optional HQ imports
 try:
-    from src.hq_pipeline_extended import (
-        ExtendedPipelineConfig,
-        ExtendedHQPipeline,
-        create_extended_pipeline
-    )
+    from src.hq_pipeline_extended import ExtendedHQPipeline, ExtendedPipelineConfig, create_extended_pipeline
     HAS_HQ = True
 except ImportError:
     try:
-        from hq_pipeline_extended import (
-            ExtendedPipelineConfig,
-            ExtendedHQPipeline,
-            create_extended_pipeline
-        )
+        from hq_pipeline_extended import ExtendedHQPipeline, ExtendedPipelineConfig, create_extended_pipeline
         HAS_HQ = True
     except ImportError:
         HAS_HQ = False
 
 # Optional config loader
 try:
-    from src.config_loader import load_config, merge_cli_args, AudioReaderConfig
+    from src.config_loader import AudioReaderConfig, load_config, merge_cli_args
     HAS_CONFIG = True
 except ImportError:
     try:
-        from config_loader import load_config, merge_cli_args, AudioReaderConfig
+        from config_loader import AudioReaderConfig, load_config, merge_cli_args
         HAS_CONFIG = True
     except ImportError:
         HAS_CONFIG = False
 
 # Optional progress checkpoint
 try:
-    from src.progress_checkpoint import ProgressCheckpoint, Checkpoint
+    from src.progress_checkpoint import Checkpoint, ProgressCheckpoint
     HAS_CHECKPOINT = True
 except ImportError:
     try:
-        from progress_checkpoint import ProgressCheckpoint, Checkpoint
+        from progress_checkpoint import Checkpoint, ProgressCheckpoint
         HAS_CHECKPOINT = True
     except ImportError:
         HAS_CHECKPOINT = False
 
 # Optional time estimator
 try:
-    from src.time_estimator import estimate_conversion_time, ConversionEstimate
+    from src.time_estimator import ConversionEstimate, estimate_conversion_time
     HAS_ESTIMATOR = True
 except ImportError:
     try:
-        from time_estimator import estimate_conversion_time, ConversionEstimate
+        from time_estimator import ConversionEstimate, estimate_conversion_time
         HAS_ESTIMATOR = True
     except ImportError:
         HAS_ESTIMATOR = False
 
 # Optional rich progress
 try:
-    from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
     from rich.console import Console
+    from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
@@ -99,8 +91,11 @@ ENGINES = {
     "orpheus": "Orpheus - Emotion naturelle, tags inline (Llama-3B)",
     "parler": "Parler TTS - Haute qualite multilangue (Hugging Face)",
     "qwen3": "Qwen3-TTS - 10 langues, clonage 3s, instruct (Alibaba)",
+    "voxtral": "Voxtral (Mistral AI) - Cloud/local, 9 langues, clonage 2s",
     "dia": "Dia 1.6B - Multi-speakers natif",
     "f5": "F5-TTS - Flow matching, CPU-friendly",
+    "zonos": "Zonos (Zyphra) - Synthese expressive, controle emotionnel, clonage 5s",
+    "fish": "Fish Speech - Modele de fondation audio, clonage 10s, API cloud/local",
     "xtts": "XTTS-v2 - Clonage haute qualite",
     "edge": "Edge-TTS (Microsoft) - Online",
 }
@@ -186,16 +181,17 @@ class ProgressReporter:
             print()
 
 
-import soundfile as sf
 import numpy as np
+import soundfile as sf
 
 
 def pipeline_synthesize_chapter(pipeline, text, output_path):
     """Synthetise un chapitre complet avec le pipeline HQ."""
     try:
-        from src.hq_pipeline_extended import AudiobookGenerator
-        import tempfile
         import os
+        import tempfile
+
+        from src.hq_pipeline_extended import AudiobookGenerator
 
         # 1. Initialiser le generateur
         generator = AudiobookGenerator(config=pipeline.config)
@@ -214,12 +210,12 @@ def pipeline_synthesize_chapter(pipeline, text, output_path):
             voice=pipeline.config.narrator_voice
         )
 
-        def synth_fn(t, v, s):
+        def synth_fn(t, v, s, g=None):
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
             try:
                 success = engine.synthesize(
-                    t, tmp_path, voice=v, speed=s,
+                    t, tmp_path, voice=v, speed=s, gender=g,
                     speaker_wav=v if (is_xtts and os.path.exists(str(v))) else None
                 )
 
@@ -242,7 +238,7 @@ def pipeline_synthesize_chapter(pipeline, text, output_path):
 
         # 6. Mastering final
         if pipeline.config.enable_audio_enhancement:
-            from src.audio_enhancer import AudioEnhancer
+            from src.audio_enhancer import AudioEnhancer, NativeAudioEnhancer
             enhancer = AudioEnhancer()
             if enhancer.is_available():
                 mastered_path = output_path.with_name(f"{output_path.stem}_mastered.wav")
@@ -253,6 +249,26 @@ def pipeline_synthesize_chapter(pipeline, text, output_path):
                 if success and mastered_path.exists():
                     import os as os_module
                     os_module.replace(mastered_path, output_path)
+            else:
+                # Fallback to NativeAudioEnhancer if ffmpeg is not available
+                try:
+                    native_enhancer = NativeAudioEnhancer()
+                    if hasattr(pipeline.config, 'acx_target_lufs'):
+                        native_enhancer.config.target_lufs = pipeline.config.acx_target_lufs
+
+                    audio_data, sr = sf.read(str(output_path))
+                    # Narrator gender is neutral by default, or we can guess from pipeline.config.narrator_voice
+                    narrator_gender = "neutral"
+                    n_voice = str(pipeline.config.narrator_voice).lower()
+                    if "am_" in n_voice or "bm_" in n_voice or "male" in n_voice or "henri" in n_voice:
+                        narrator_gender = "male"
+                    elif "af_" in n_voice or "bf_" in n_voice or "ff_" in n_voice or "female" in n_voice or "siwis" in n_voice or "denise" in n_voice or "sylvie" in n_voice:
+                        narrator_gender = "female"
+
+                    enhanced = native_enhancer.enhance(audio_data, sample_rate=sr, gender=narrator_gender)
+                    sf.write(str(output_path), enhanced, sr)
+                except Exception as e:
+                    print(f"Erreur lors du mastering final natif : {e}")
 
         return True
     except Exception as e:
@@ -264,7 +280,7 @@ def pipeline_synthesize_chapter(pipeline, text, output_path):
 
 def dry_run(input_file: Path, language: str, engine_type: str, hq: bool):
     """Execute une analyse sans synthese."""
-    print(f"\n=== Mode Dry-Run (Analyse sans synthese) ===\n")
+    print("\n=== Mode Dry-Run (Analyse sans synthese) ===\n")
     print(f"Fichier: {input_file}")
 
     # Parser le livre
@@ -304,14 +320,14 @@ def dry_run(input_file: Path, language: str, engine_type: str, hq: bool):
     # Estimation du temps
     if HAS_ESTIMATOR:
         estimate = estimate_conversion_time(all_text, engine=engine_type, hq=hq, chapter_count=len(chapters))
-        print(f"\n--- Estimations ---")
+        print("\n--- Estimations ---")
         print(f"  Caracteres totaux: {estimate.total_chars:,}")
         print(f"  Mots totaux: {estimate.total_words:,}")
         print(f"  Duree audio estimee: {estimate.audio_duration_formatted}")
         print(f"  Temps de traitement estime: {estimate.processing_time_formatted}")
         print(f"  Taille fichier estimee: {estimate.estimated_file_size_mb:.1f} MB")
     else:
-        print(f"\n--- Statistiques ---")
+        print("\n--- Statistiques ---")
         print(f"  Caracteres totaux: {total_chars:,}")
         print(f"  Mots totaux: {total_words:,}")
         # Estimation simple
@@ -392,8 +408,8 @@ def convert_book(
     # Si clonage demande, on force XTTS ou Chatterbox ou Qwen3 si auto
     if clone_path:
         if engine_type == "auto":
-            # Preference Chatterbox > Qwen3 > F5 > XTTS
-            for eng in ["chatterbox", "qwen3", "f5", "xtts"]:
+            # Preference Chatterbox > Qwen3 > Voxtral > F5 > XTTS
+            for eng in ["chatterbox", "qwen3", "voxtral", "f5", "xtts"]:
                 try:
                     if eng == "chatterbox":
                         from src.tts_chatterbox_engine import ChatterboxEngine
@@ -405,6 +421,12 @@ def convert_book(
                         from src.tts_qwen3_engine import Qwen3Engine
                         q3 = Qwen3Engine()
                         if q3.is_available():
+                            engine_type = eng
+                            break
+                    elif eng == "voxtral":
+                        from src.tts_voxtral_engine import VoxtralEngine
+                        vx = VoxtralEngine()
+                        if vx.is_available():
                             engine_type = eng
                             break
                     elif eng == "f5":
@@ -420,11 +442,11 @@ def convert_book(
             print(f"Note: Moteur bascule sur {engine_type} pour le support du clonage.")
 
     # Initialiser le moteur ou pipeline
-    print(f"\nConfiguration TTS:")
+    print("\nConfiguration TTS:")
     print(f"  Langue: {language}")
 
     if hq and HAS_HQ:
-        print(f"  Moteur: Pipeline HQ etendu (v5.0)")
+        print("  Moteur: Pipeline HQ etendu (v5.0)")
         print(f"  Style: {style}")
         print(f"  Multi-voix: {'Oui' if multivoice else 'Non'}")
         print(f"  Mastering: {'Oui' if master else 'Non'}")
@@ -482,12 +504,11 @@ def convert_book(
     print("-" * 50)
 
     # Optionnel: generateur de jingles
-    jingle_audio = None
     if chapter_jingle:
         try:
             from src.chapter_jingles import ChapterJingleGenerator
             jingle_gen = ChapterJingleGenerator()
-            jingle_audio = jingle_gen.generate(chapter_jingle)
+            jingle_gen.generate(chapter_jingle)
             print(f"  Jingle inter-chapitres: {chapter_jingle}")
         except ImportError:
             pass
@@ -608,7 +629,7 @@ Moteurs TTS (tous gratuits):
     parser.add_argument(
         "-e", "--engine",
         default="auto",
-        choices=["auto", "kokoro", "mms", "chatterbox", "orpheus", "parler", "qwen3", "dia", "f5", "xtts", "edge"],
+        choices=["auto", "kokoro", "mms", "chatterbox", "orpheus", "parler", "qwen3", "voxtral", "dia", "f5", "xtts", "edge"],
         help="Moteur TTS"
     )
 
@@ -884,7 +905,7 @@ Moteurs TTS (tous gratuits):
             on_job_error=on_error,
         )
 
-        print(f"\n=== Resultats ===")
+        print("\n=== Resultats ===")
         print(f"  Traites: {results['processed']}")
         print(f"  Succes:  {results['success']}")
         print(f"  Erreurs: {results['failed']}")

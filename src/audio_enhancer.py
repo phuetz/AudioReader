@@ -10,12 +10,13 @@ Fonctionnalites:
 - Ajout de room tone (ambiance legere)
 - Crossfade entre segments
 """
-import numpy as np
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional, List
-import subprocess
 import json
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
+
+import numpy as np
 
 
 @dataclass
@@ -52,6 +53,9 @@ class AudioEnhancerConfig:
     # Format de sortie
     output_sample_rate: int = 44100
     output_bitrate: str = "192k"
+
+    # Profil par défaut (male, female, neutral)
+    gender_profile: str = "neutral"
 
 
 class AudioEnhancer:
@@ -384,13 +388,14 @@ class NativeAudioEnhancer:
     def __init__(self, config: Optional[AudioEnhancerConfig] = None):
         self.config = config or AudioEnhancerConfig()
 
-    def enhance(self, audio: np.ndarray, sample_rate: int = 24000) -> np.ndarray:
+    def enhance(self, audio: np.ndarray, sample_rate: int = 24000, gender: Optional[str] = None) -> np.ndarray:
         """
         Applique le pipeline de mastering complet sur un array audio.
 
         Args:
             audio: Signal audio float32 [-1, 1]
             sample_rate: Taux d'echantillonnage
+            gender: Genre du locuteur ('male', 'female', 'neutral') pour mastering adaptatif
 
         Returns:
             Audio ameliore float32 [-1, 1]
@@ -403,27 +408,117 @@ class NativeAudioEnhancer:
         # 0. Debruitage spectral (noisereduce si disponible, sinon gate maison)
         audio = self._denoise(audio, sample_rate)
 
-        # 1. Highpass — retirer le rumble basse frequence
-        audio = self._highpass(audio, sample_rate, self.config.highpass_freq)
+        # Déterminer le profil de genre actif
+        profile_raw = (gender or self.config.gender_profile or "neutral").lower().strip()
+        if profile_raw in ("m", "male", "homme", "masculin"):
+            profile = "male"
+        elif profile_raw in ("f", "female", "femme", "feminin"):
+            profile = "female"
+        else:
+            profile = "neutral"
 
-        # 2. De-essing dynamique
-        if self.config.deess_enabled:
-            audio = self._deess(audio, sample_rate)
+        try:
+            import pedalboard
 
-        # 3. EQ voix (presence + air)
-        audio = self._eq_voice(audio, sample_rate)
+            effects = []
 
-        # 4. Compression douce
-        if self.config.compression_enabled:
-            audio = self._compress(audio, sample_rate)
+            # 0. Noise Gate initial pour couper le bruit de fond silencieux
+            effects.append(pedalboard.NoiseGate(
+                threshold_db=-55.0,
+                ratio=10.0,
+                attack_ms=2.0,
+                release_ms=100.0
+            ))
 
-        # 5. Normalisation loudness
-        audio = self._normalize_loudness(audio)
+            # 1. Highpass adaptatif — retirer le rumble basse frequence
+            hp_freq = 75.0 if profile == "male" else (100.0 if profile == "female" else float(self.config.highpass_freq))
+            effects.append(pedalboard.HighpassFilter(cutoff_frequency_hz=hp_freq))
 
-        # 6. Brick-wall limiter
-        audio = self._limiter(audio)
+            # 2. Low Shelf (uniquement homme) pour corriger l'effet de proximite boomy
+            if profile == "male":
+                effects.append(pedalboard.LowShelfFilter(
+                    cutoff_frequency_hz=250.0,
+                    gain_db=-1.5,
+                    q=0.7
+                ))
 
-        return audio
+            # 3. De-essing dynamique adaptatif (simule par PeakFilter)
+            if self.config.deess_enabled:
+                deess_freq = 5000.0 if profile == "male" else (7000.0 if profile == "female" else float(self.config.deess_freq))
+                effects.append(pedalboard.PeakFilter(
+                    cutoff_frequency_hz=deess_freq,
+                    gain_db=float(self.config.deess_threshold / 4.0),
+                    q=2.0
+                ))
+
+            # 4. EQ voix (presence + air) adaptatif
+            presence_freq = 2500.0 if profile == "male" else (3500.0 if profile == "female" else 3000.0)
+            if self.config.presence_boost > 0:
+                effects.append(pedalboard.PeakFilter(
+                    cutoff_frequency_hz=presence_freq,
+                    gain_db=float(self.config.presence_boost),
+                    q=1.5
+                ))
+
+            if self.config.air_boost > 0 and sample_rate > 22000:
+                air_gain = float(self.config.air_boost + 0.5) if profile == "female" else float(self.config.air_boost)
+                effects.append(pedalboard.PeakFilter(
+                    cutoff_frequency_hz=12000.0,
+                    gain_db=air_gain,
+                    q=2.0
+                ))
+
+            # 5. Compression adaptative
+            if self.config.compression_enabled:
+                comp_attack = 15.0 if profile == "male" else float(self.config.comp_attack)
+                effects.append(pedalboard.Compressor(
+                    threshold_db=float(self.config.comp_threshold),
+                    ratio=float(self.config.comp_ratio),
+                    attack_ms=comp_attack,
+                    release_ms=float(self.config.comp_release)
+                ))
+
+            # 6. Limiter (protection initiale avant normalisation)
+            effects.append(pedalboard.Limiter(threshold_db=float(self.config.true_peak_limit)))
+
+            # Appliquer le pedalboard
+            board = pedalboard.Pedalboard(effects)
+            audio = board(audio, sample_rate)
+
+            # 7. Normalisation loudness
+            audio = self._normalize_loudness(audio, self.config.target_lufs)
+
+            # 8. Limiter final
+            limiter_board = pedalboard.Pedalboard([
+                pedalboard.Limiter(threshold_db=float(self.config.true_peak_limit))
+            ])
+            audio = limiter_board(audio, sample_rate)
+
+            return audio.astype(np.float32)
+
+        except ImportError:
+            # Fallback vers le DSP numpy/scipy existant
+            # 1. Highpass — retirer le rumble basse frequence
+            audio = self._highpass(audio, sample_rate, self.config.highpass_freq)
+
+            # 2. De-essing dynamique
+            if self.config.deess_enabled:
+                audio = self._deess(audio, sample_rate)
+
+            # 3. EQ voix (presence + air)
+            audio = self._eq_voice(audio, sample_rate)
+
+            # 4. Compression douce
+            if self.config.compression_enabled:
+                audio = self._compress(audio, sample_rate)
+
+            # 5. Normalisation loudness
+            audio = self._normalize_loudness(audio, self.config.target_lufs)
+
+            # 6. Brick-wall limiter
+            audio = self._limiter(audio)
+
+            return audio
 
     @staticmethod
     def _highpass(audio: np.ndarray, sr: int, cutoff: int) -> np.ndarray:
@@ -680,7 +775,7 @@ def enhance_audiobook(
         return False
 
     if verbose:
-        print(f"Analyse du fichier source...")
+        print("Analyse du fichier source...")
         analysis = enhancer.analyze_loudness(input_path)
         if analysis:
             print(f"  Loudness: {analysis['integrated']:.1f} LUFS")
@@ -688,12 +783,12 @@ def enhance_audiobook(
             print(f"  LRA: {analysis['lra']:.1f}")
 
     if verbose:
-        print(f"Application des ameliorations...")
+        print("Application des ameliorations...")
 
     success = enhancer.enhance_file(input_path, output_path, verbose)
 
     if success and verbose:
-        print(f"Analyse du fichier ameliore...")
+        print("Analyse du fichier ameliore...")
         analysis = enhancer.analyze_loudness(output_path)
         if analysis:
             print(f"  Loudness: {analysis['integrated']:.1f} LUFS")

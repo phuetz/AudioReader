@@ -67,3 +67,8 @@ google-generativeai>=0.8.0
 
 # F5-TTS (flow matching):
 # pip install f5-tts torch torchaudio
+
+# Mastering & Metadata (v5.0)
+pedalboard>=0.9.0
+mutagen>=1.47.0
+

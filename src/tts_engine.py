@@ -17,10 +17,10 @@ Usage:
 """
 
 import asyncio
-from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict
 from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional
 
 
 class EngineType(Enum):
@@ -34,9 +34,13 @@ class EngineType(Enum):
     ORPHEUS = "orpheus"
     PARLER = "parler"
     QWEN3 = "qwen3"
+    VOXTRAL = "voxtral"
     DIA = "dia"
     F5 = "f5"
+    ZONOS = "zonos"
+    FISH = "fish"
     AUTO = "auto"
+
 
 
 # Mapping langue -> meilleur moteur
@@ -182,7 +186,7 @@ class UnifiedTTSEngine:
             try:
                 XTTSEngine = robust_import("tts_xtts_engine", "XTTSEngine")
                 XTTSConfig = robust_import("tts_xtts_engine", "XTTSConfig")
-                
+
                 config = XTTSConfig(
                     default_language=self.language,
                     speed=self.speed
@@ -229,6 +233,15 @@ class UnifiedTTSEngine:
                 self._engine_type = EngineType.KOKORO
                 self._create_engine()
 
+        elif self._engine_type == EngineType.VOXTRAL:
+            try:
+                VoxtralEngine = robust_import("tts_voxtral_engine", "VoxtralEngine")
+                self._engine = VoxtralEngine()
+            except Exception as e:
+                print(f"Voxtral non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
         elif self._engine_type == EngineType.DIA:
             try:
                 DiaEngine = robust_import("tts_dia_engine", "DiaEngine")
@@ -244,6 +257,24 @@ class UnifiedTTSEngine:
                 self._engine = F5Engine()
             except Exception as e:
                 print(f"F5-TTS non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.ZONOS:
+            try:
+                ZonosEngine = robust_import("tts_zonos_engine", "ZonosEngine")
+                self._engine = ZonosEngine()
+            except Exception as e:
+                print(f"Zonos non disponible: {e}, fallback Kokoro")
+                self._engine_type = EngineType.KOKORO
+                self._create_engine()
+
+        elif self._engine_type == EngineType.FISH:
+            try:
+                FishEngine = robust_import("tts_fish_engine", "FishEngine")
+                self._engine = FishEngine()
+            except Exception as e:
+                print(f"Fish Speech non disponible: {e}, fallback Kokoro")
                 self._engine_type = EngineType.KOKORO
                 self._create_engine()
 
@@ -285,6 +316,22 @@ class UnifiedTTSEngine:
             print("Aucun moteur TTS disponible")
             return False
 
+        # Déterminer le genre de la voix pour le post-processing
+        gender = kwargs.get("gender")
+        if not gender:
+            voice_for_gender = voice or self.voice
+            if voice_for_gender:
+                voice_str = str(voice_for_gender).lower().strip()
+                if "," in voice_str:
+                    voice_str = voice_str.split(",")[0].split(":")[0].strip()
+                if voice_str.startswith("am_") or voice_str.startswith("bm_") or voice_str.startswith("m_") or "male" in voice_str or "henri" in voice_str:
+                    gender = "male"
+                elif voice_str.startswith("af_") or voice_str.startswith("bf_") or voice_str.startswith("ff_") or "female" in voice_str or "siwis" in voice_str or "denise" in voice_str or "sylvie" in voice_str:
+                    gender = "female"
+
+        # Extraire le paramètre d'amélioration audio
+        enhance_audio = kwargs.pop('enhance_audio', self._kwargs.get('enhance_audio', True))
+
         # Si le moteur supporte le clonage (XTTS), passer speaker_wav
         if self._engine_type == EngineType.XTTS:
              if speaker_wav:
@@ -292,22 +339,42 @@ class UnifiedTTSEngine:
              # XTTS utilise voice_id au lieu de voice
              if voice:
                  kwargs['voice_id'] = voice
-             
+
              # Appeler sans l'argument 'voice' qui n'existe pas dans XTTS
-             return self._engine.synthesize(
+             success = self._engine.synthesize(
                 text=text,
                 output_path=Path(output_path),
                 speed=speed,
                 **kwargs
             )
+        else:
+             success = self._engine.synthesize(
+                text=text,
+                output_path=Path(output_path),
+                voice=voice,
+                speed=speed,
+                **kwargs
+             )
 
-        return self._engine.synthesize(
-            text=text,
-            output_path=Path(output_path),
-            voice=voice,
-            speed=speed,
-            **kwargs
-        )
+        # Appliquer le mastering adaptatif global (sauf pour Kokoro qui gère son propre post-processing)
+        if success and enhance_audio and self._engine_type != EngineType.KOKORO:
+            try:
+                import soundfile as sf
+
+                from .audio_enhancer import NativeAudioEnhancer
+
+                audio_data, sr = sf.read(str(output_path))
+                enhancer = NativeAudioEnhancer()
+
+                # Appliquer le mastering adaptatif
+                enhanced_audio = enhancer.enhance(audio_data, sample_rate=sr, gender=gender)
+
+                # Réécrire l'audio sur le fichier de sortie
+                sf.write(str(output_path), enhanced_audio, sr)
+            except Exception as e:
+                print(f"[Mastering] Impossible d'appliquer le mastering adaptatif : {e}")
+
+        return success
 
     def get_info(self) -> dict:
         """Retourne des informations sur le moteur."""

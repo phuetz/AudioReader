@@ -13,126 +13,67 @@ Integration complete de:
 - v2.4: Styles de narration, controle mot-par-mot, attribution dialogue,
         conformite ACX/Audible, detection emotion LLM
 """
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, Callable, List, Dict, Any
-import numpy as np
 import json
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
-# Pipeline de base
-from .hq_pipeline import (
-    HQPipeline,
-    HQPipelineConfig,
-    HQSegment,
-    create_hq_pipeline
-)
+import numpy as np
+
+from .acx_compliance import ACXAnalyzer, ACXCorrector, ACXStandards, ComplianceLevel, ComplianceReport
 
 # Nouveaux modules
-from .audio_tags import (
-    AudioTagProcessor,
-    AudioTag,
-    process_text_with_audio_tags,
-    ProcessedSegment
-)
-from .voice_morphing import (
-    VoiceMorpher,
-    VoiceMorphSettings,
-    VoicePresets
-)
-from .voice_cloning import (
-    VoiceCloner,
-    VoiceCloningManager,
-    ClonedVoice
-)
-from .synthesis_cache import (
-    SynthesisCache,
-    ParallelSynthesizer,
-    BatchProcessor,
-    CacheStats
-)
+from .audio_tags import AudioTag, AudioTagProcessor, ProcessedSegment, process_text_with_audio_tags
+from .bio_acoustics import BioAudioGenerator
+
+# v2.3 modules
+from .breath_samples import HybridBreathGenerator
+from .conversation_generator import Conversation, ConversationGenerator, DialogueParser, Speaker, VoicePool
+from .dialogue_attribution import AttributedDialogue, AttributionMethod, DialogueAttribution, DialogueAttributor
+from .dynamic_voice import DynamicVoiceManager
 from .emotion_control import (
     EmotionController,
     EmotionSettings,
     PhonemeProcessor,
     PronunciationManager,
-    create_pronunciation_config
-)
-from .conversation_generator import (
-    ConversationGenerator,
-    DialogueParser,
-    VoicePool,
-    Conversation,
-    Speaker
+    create_pronunciation_config,
 )
 
-from .bio_acoustics import BioAudioGenerator
-from .dynamic_voice import DynamicVoiceManager
-
-# v2.3 modules
-from .breath_samples import HybridBreathGenerator
-from .intonation_contour import (
-    IntonationProcessor,
-    IntonationContour,
-    IntonationContourDetector
+# Pipeline de base
+from .hq_pipeline import HQPipeline, HQPipelineConfig, HQSegment, create_hq_pipeline
+from .intonation_contour import IntonationContour, IntonationContourDetector, IntonationProcessor
+from .llm_emotion_detector import EmotionCategory, EmotionResult, LLMConfig, LLMEmotionDetector
+from .llm_enhancer import (
+    EmotionType as LLMEmotionType,
 )
-from .timing_humanizer import (
-    TimingHumanizer,
-    TimingConfig,
-    PauseCalculator,
-    TextTimingProcessor,
-    ClauseType
-)
-
-# v2.4 modules
-from .narration_styles import (
-    NarrationStyle,
-    NarrationStyleManager,
-    StyleProsodyProfile,
-    STYLE_PROFILES
-)
-from .word_level_control import (
-    WordLevelController,
-    WordProsody,
-    ProcessedText as WordProcessedText,
-    process_text_with_word_control
-)
-from .dialogue_attribution import (
-    DialogueAttributor,
-    DialogueAttribution,
-    AttributedDialogue,
-    AttributionMethod
-)
-from .acx_compliance import (
-    ACXAnalyzer,
-    ACXCorrector,
-    ACXStandards,
-    ComplianceReport,
-    ComplianceLevel
-)
-from .llm_emotion_detector import (
-    LLMEmotionDetector,
-    LLMConfig,
-    EmotionResult,
-    EmotionCategory
-)
-
-# v5.0: Sound effects
-from .soundfx_engine import (
-    SoundFXEngine,
-    BUILTIN_EFFECTS,
-    apply_sound_effects_to_audio,
+from .llm_enhancer import (
+    LLMConfig as LLMEnhancerConfig,
 )
 
 # v5.0: LLM Enhancer (unified pipeline)
 from .llm_enhancer import (
     LLMEnhancer,
-    LLMConfig as LLMEnhancerConfig,
     LLMProvider,
-    EmotionType as LLMEmotionType,
     NarrativeContext,
     create_enhancer,
 )
+
+# v2.4 modules
+from .narration_styles import STYLE_PROFILES, NarrationStyle, NarrationStyleManager, StyleProsodyProfile
+
+# v5.0: Sound effects
+from .soundfx_engine import (
+    BUILTIN_EFFECTS,
+    SoundFXEngine,
+    apply_sound_effects_to_audio,
+)
+from .synthesis_cache import BatchProcessor, CacheStats, ParallelSynthesizer, SynthesisCache
+from .timing_humanizer import ClauseType, PauseCalculator, TextTimingProcessor, TimingConfig, TimingHumanizer
+from .voice_cloning import ClonedVoice, VoiceCloner, VoiceCloningManager
+from .voice_morphing import VoiceMorpher, VoiceMorphSettings, VoicePresets
+from .word_level_control import ProcessedText as WordProcessedText
+from .word_level_control import WordLevelController, WordProsody, process_text_with_word_control
 
 
 @dataclass
@@ -648,7 +589,7 @@ class ExtendedHQPipeline:
             self.llm_enhancer.is_available()):
             try:
                 text = self.llm_enhancer.auto_insert_audio_tags(text)
-            except Exception as e:
+            except Exception:
                 # Fallback silencieux
                 pass
 
@@ -885,7 +826,7 @@ class ExtendedHQPipeline:
                     emotion=base_seg.emotion,
                     intensity=base_seg.intensity
                 )
-            
+
             # ---
 
             # Recuperer les parametres de morphing
@@ -1000,18 +941,32 @@ class ExtendedHQPipeline:
         """
         if self.parallel_synth and self.config.enable_parallel:
             # Preparer les segments pour la parallelisation
-            batch = [
-                {
+            batch = []
+            for seg in segments:
+                gender = None
+                if seg.voice_id:
+                    v_str = str(seg.voice_id).lower()
+                    if "am_" in v_str or "bm_" in v_str or "male" in v_str or "henri" in v_str:
+                        gender = "male"
+                    elif "af_" in v_str or "bf_" in v_str or "ff_" in v_str or "female" in v_str or "siwis" in v_str or "denise" in v_str or "sylvie" in v_str:
+                        gender = "female"
+                batch.append({
                     "text": seg.text,
                     "voice_id": seg.voice_id,
                     "speed": seg.final_speed,
-                }
-                for seg in segments
-            ]
+                    "gender": gender
+                })
 
             # Fonction de synthese qui extrait l'audio si c'est un tuple
+            import inspect
+            sig = inspect.signature(synthesize_fn)
+            has_gender_param = len(sig.parameters) >= 4 or 'gender' in sig.parameters
+
             def wrapped_synth_fn(s):
-                res = synthesize_fn(s["text"], s["voice_id"], s["speed"])
+                if has_gender_param:
+                    res = synthesize_fn(s["text"], s["voice_id"], s["speed"], s["gender"])
+                else:
+                    res = synthesize_fn(s["text"], s["voice_id"], s["speed"])
                 return res[0] if isinstance(res, tuple) else res
 
             # Synthese parallele avec cache
@@ -1023,6 +978,10 @@ class ExtendedHQPipeline:
 
         else:
             # Synthese sequentielle
+            import inspect
+            sig = inspect.signature(synthesize_fn)
+            has_gender_param = len(sig.parameters) >= 4 or 'gender' in sig.parameters
+
             audios = []
             for i, seg in enumerate(segments):
                 # Verifier le cache
@@ -1035,9 +994,21 @@ class ExtendedHQPipeline:
                     audio, _ = sf.read(str(cached))
                     self._stats["cache_hits"] += 1
                 else:
-                    audio_full = synthesize_fn(seg.text, seg.voice_id, seg.final_speed)
+                    # Déduire le genre
+                    gender = None
+                    if seg.voice_id:
+                        v_str = str(seg.voice_id).lower()
+                        if "am_" in v_str or "bm_" in v_str or "male" in v_str or "henri" in v_str:
+                            gender = "male"
+                        elif "af_" in v_str or "bf_" in v_str or "ff_" in v_str or "female" in v_str or "siwis" in v_str or "denise" in v_str or "sylvie" in v_str:
+                            gender = "female"
+
+                    if has_gender_param:
+                        audio_full = synthesize_fn(seg.text, seg.voice_id, seg.final_speed, gender)
+                    else:
+                        audio_full = synthesize_fn(seg.text, seg.voice_id, seg.final_speed)
                     audio = audio_full[0] if isinstance(audio_full, tuple) else audio_full
-                    
+
                     self._stats["cache_misses"] += 1
 
                     # Mettre en cache
@@ -1137,7 +1108,7 @@ class ExtendedHQPipeline:
                 try:
                     result = self.llm_enhancer.validate_character_name(
                         name,
-                        context=f"Personnage dans un livre",
+                        context="Personnage dans un livre",
                         existing_characters=[c.get("name", c) if isinstance(c, dict) else getattr(c, "name", str(c)) for c in validated]
                     )
                     if result.is_character and result.confidence >= 0.5:
@@ -1274,7 +1245,7 @@ class AudiobookGenerator:
             # Synthetiser
             if self.tts_engine:
                 from .tts_unified import TTSEngine
-                
+
                 # Mapper le moteur
                 engine_map = {
                     "auto": TTSEngine.AUTO,
@@ -1283,13 +1254,14 @@ class AudiobookGenerator:
                 }
                 selected_engine = engine_map.get(self.pipeline.config.tts_engine, TTSEngine.AUTO)
 
-                def synth_fn(text, voice, speed):
+                def synth_fn(text, voice, speed, gender=None):
                     return self.tts_engine.synthesize(
-                        text, 
-                        voice=voice, 
-                        speed=speed, 
+                        text,
+                        voice=voice,
+                        speed=speed,
                         lang=self.pipeline.config.lang,
-                        engine=selected_engine
+                        engine=selected_engine,
+                        gender=gender
                     )
 
                 audios = self.pipeline.synthesize_segments(
@@ -1446,14 +1418,14 @@ if __name__ == "__main__":
 
     segments = pipeline.process_chapter(test_text, progress_callback=progress)
 
-    print(f"\n=== Resultats ===")
+    print("\n=== Resultats ===")
     print(f"Segments: {len(segments)}")
 
-    print(f"\n=== Segments avec Audio Tags ===")
+    print("\n=== Segments avec Audio Tags ===")
     for seg in segments[:5]:
         tags_str = ", ".join([t.name for t in seg.audio_tags]) if seg.audio_tags else "-"
         print(f"[{seg.speaker:10}] tags=[{tags_str:20}] | {seg.text[:40]}...")
 
-    print(f"\n=== Stats ===")
+    print("\n=== Stats ===")
     for key, value in pipeline.get_stats().items():
         print(f"  {key}: {value}")
